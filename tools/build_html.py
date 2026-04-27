@@ -420,6 +420,165 @@ header .subtitle {
       .slice(0, 6)
       .join(" ");
   }
+
+  // For "slight variation" distractors we keep a small lookup of words the
+  // mark scheme commonly underlines (= required) and tempting alternatives
+  // students often substitute. We only apply these when the word is present
+  // in THIS pair's underlined_in_* list, so transformations are anchored
+  // in the actual MS guidance.
+  const KEYWORD_SWAPS = {
+    "and": ["or"],
+    "or": ["and"],
+    "centre": ["edge"],
+    "edge": ["centre"],
+    "maximum": ["minimum"],
+    "minimum": ["maximum"],
+    "larger": ["smaller"],
+    "smaller": ["larger"],
+    "longer": ["shorter"],
+    "shorter": ["longer"],
+    "more": ["fewer"],
+    "fewer": ["more"],
+    "increase": ["decrease"],
+    "decrease": ["increase"],
+    "vertical": ["horizontal"],
+    "horizontal": ["vertical"],
+    "perpendicular": ["parallel"],
+    "parallel": ["perpendicular"],
+    "with": ["without"],
+    "without": ["with"],
+    "compare": ["ignore"],
+    "all": ["some"],
+    "raw": ["averaged"],
+    "percentage": ["absolute"],
+    "all readings": ["one reading"],
+  };
+
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // Generate "slight variation" distractors from the correct text by either
+  // dropping or swapping each underlined keyword. Drops teach the student that
+  // the keyword was required; swaps teach that the specific word matters.
+  function variantsOf(correctText, underlinedWords) {
+    const variants = [];
+    // Dedup by literal text (NOT fingerprint - fingerprints truncate to 6
+    // words, so a swap further into the text would collide with the original).
+    const seen = new Set([correctText]);
+    for (const ulw of (underlinedWords || [])) {
+      const norm = ulw.toLowerCase().replace(/[^a-z\s'\-/]/g, "").trim();
+      if (!norm || norm.length < 2) continue;
+      const isWord = /^[a-z]+$/.test(norm);
+      const re = isWord
+        ? new RegExp("\\b" + escapeRegex(norm) + "\\b", "i")
+        : new RegExp(escapeRegex(norm), "i");
+      if (!re.test(correctText)) continue;
+
+      const dropped = correctText.replace(re, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([.,;:])/g, "$1")
+        .trim();
+      if (dropped && !seen.has(dropped) && dropped.length > 8) {
+        seen.add(dropped); variants.push(dropped);
+      }
+
+      const swaps = KEYWORD_SWAPS[norm] || [];
+      for (const sw of swaps) {
+        const swapped = correctText.replace(re, sw);
+        if (!seen.has(swapped) && swapped !== correctText) {
+          seen.add(swapped); variants.push(swapped);
+        }
+      }
+    }
+    return variants;
+  }
+
+  // Curated pool of plausible-but-uncredited answers students often give. Each
+  // entry is gated by apparatus tags - empty `applies_when` = universal (still
+  // gated by fingerprint check against this question's accepted answers).
+  const MISCONCEPTIONS = [
+    // ---- LIMITATIONS commonly written by students but not credited ----
+    { kind: "limitation",
+      text: "Human reaction time when starting and stopping the stopwatch.",
+      applies_when: ["time", "stopwatch", "stop-watch", "oscillation", "oscillations", "swing", "pendulum", "fall", "drop", "ball", "period"] },
+    { kind: "limitation",
+      text: "Random errors in the measurements.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "Systematic errors in the apparatus.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "Air resistance affects the motion of the apparatus.",
+      applies_when: ["fall", "ball", "drop", "projectile", "bounce"] },
+    { kind: "limitation",
+      text: "Friction at the pivot affects the period of oscillation.",
+      applies_when: ["pendulum", "pivot", "swing", "oscillation", "oscillations"] },
+    { kind: "limitation",
+      text: "The temperature of the room could change during the experiment.",
+      applies_when: ["resistance", "wire", "current", "voltage", "thermistor"] },
+    { kind: "limitation",
+      text: "The apparatus is not perfectly accurate.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "Not enough time was available to complete the experiment.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "Only one set of readings was taken so the result is unreliable.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "The measurements depend on the observer's judgement.",
+      applies_when: [] },
+    { kind: "limitation",
+      text: "Light intensity in the room varies.",
+      applies_when: ["light", "ldr", "lamp", "intensity"] },
+    // ---- IMPROVEMENTS commonly written but not credited (too vague) ----
+    { kind: "improvement",
+      text: "Repeat the readings to improve accuracy.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Use a more accurate piece of apparatus.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Eliminate parallax error when reading the scale.",
+      applies_when: ["scale", "rule", "ruler", "metre", "millimetre", "mm", "cm"] },
+    { kind: "improvement",
+      text: "Use digital instruments instead of analogue ones.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Take an average of the readings to reduce error.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Make sure the apparatus is set up correctly.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Wait for the apparatus to reach equilibrium before measuring.",
+      applies_when: ["temperature", "thermometer", "heat", "cool"] },
+    { kind: "improvement",
+      text: "Use a larger sample to reduce uncertainty.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Take readings as quickly as possible.",
+      applies_when: [] },
+    { kind: "improvement",
+      text: "Carry out the experiment in a controlled environment.",
+      applies_when: [] },
+  ];
+
+  function applicableMisconceptions(question, kind) {
+    const myTags = new Set(question.tags || []);
+    const ownFps = new Set((kind === "limitation"
+      ? question.pairs.map(p => fingerprint(p.limitation))
+      : question.pairs.map(p => fingerprint(p.improvement))));
+    return MISCONCEPTIONS
+      .filter(m => m.kind === kind)
+      // Universal (empty applies_when) OR has at least one matching tag.
+      .filter(m => m.applies_when.length === 0
+        || m.applies_when.some(t => myTags.has(t)))
+      // Don't show as a "wrong" option if it's actually credited here.
+      .filter(m => !ownFps.has(fingerprint(m.text)))
+      .map(m => m.text);
+  }
   // Build per-qid lookups for tag-overlap scoring.
   const questionsById = Object.fromEntries(allQuestions.map(q => [q.id, q]));
   function tagOverlap(qidA, qidB) {
@@ -430,79 +589,117 @@ header .subtitle {
     for (const t of (a.tags || [])) if (setB.has(t)) n++;
     return n;
   }
-  // Pull from each tier in order until we have n unique items, dedup by
-  // fingerprint.
+  // Pull from each tier in order until we have n unique items. Each tier is
+  // either an array of texts (default: dedup by fingerprint - useful for
+  // cross-question candidates that may appear in multiple papers with near-
+  // identical wording) OR an object {texts, looseDedup:true} which only dedups
+  // by literal text (used for variant distractors, since their fingerprint
+  // intentionally matches the correct answer).
   function pickFromTiers(tiers, n, excludeTexts) {
-    const exFps = new Set((excludeTexts || []).map(fingerprint));
-    const seen = new Set(exFps);
+    const seenLit = new Set(excludeTexts || []);
+    const seenFp = new Set((excludeTexts || []).map(fingerprint));
     const out = [];
     for (const tier of tiers) {
       if (out.length >= n) break;
-      const shuffled = tier.slice();
+      const cfg = Array.isArray(tier)
+        ? { texts: tier, looseDedup: false, max: Infinity }
+        : { looseDedup: false, max: Infinity, ...tier };
+      const shuffled = cfg.texts.slice();
       shuffleInPlace(shuffled, Math.floor(Math.random() * 1e9));
+      let takenFromTier = 0;
       for (const text of shuffled) {
-        if (out.length >= n) break;
-        const fp = fingerprint(text);
-        if (seen.has(fp)) continue;
-        seen.add(fp);
+        if (out.length >= n || takenFromTier >= cfg.max) break;
+        if (seenLit.has(text)) continue;
+        if (!cfg.looseDedup) {
+          const fp = fingerprint(text);
+          if (seenFp.has(fp)) continue;
+          seenFp.add(fp);
+        }
+        seenLit.add(text);
         out.push(text);
+        takenFromTier++;
       }
     }
     return out;
   }
-  function distractorsForLimitation(question, correctText) {
-    // Avoid distractors that fingerprint-match any of THIS question's accepted
-    // limitations (else the "wrong" option would actually be credited here).
+  function distractorsForLimitation(question, correctPair) {
+    const correctText = correctPair.limitation;
     const ownFps = new Set(question.pairs.map(p => fingerprint(p.limitation)));
 
-    // Tier 1: explicit MS rejections for THIS question - the mark scheme
-    // literally lists these as "not credited" answers students often write.
-    const tier1 = (question.rejected_limitations || []).filter(t =>
+    // Tier A: explicit MS "(not ...)" rejections for THIS question.
+    const tierA = (question.rejected_limitations || []).filter(t =>
       !ownFps.has(fingerprint(t)));
 
-    // Tier 2: limitations from other questions whose apparatus tags overlap
-    // with this question's tags - same kind of experiment, different specifics,
-    // so they sound plausible (e.g. pendulum-related limitation as a distractor
-    // for a different pendulum experiment).
+    // Tier B: slight variations of the correct text - drop or swap an
+    // underlined keyword. Anchored in this pair's actually-underlined words.
+    const tierB = variantsOf(correctText, correctPair.underlined_in_limitation || []);
+
+    // Tier C: misconceptions filtered by apparatus tag applicability.
+    const tierC = applicableMisconceptions(question, "limitation");
+
+    // Tier D / E: cross-question by tag overlap, then anywhere as fallback.
     const myTags = new Set(question.tags || []);
-    const tier2 = [];
-    const tier3 = [];
+    const tierD = [], tierE = [];
     for (const x of allLimitations) {
       if (x.qid === question.id) continue;
       if (ownFps.has(fingerprint(x.text))) continue;
       const otherQ = questionsById[x.qid];
       const overlap = otherQ && (otherQ.tags || []).some(t => myTags.has(t));
-      if (overlap) tier2.push(x.text);
-      else tier3.push(x.text);
+      (overlap ? tierD : tierE).push(x.text);
     }
-    return pickFromTiers([tier1, tier2, tier3], 3, [correctText]);
+    // Cap tiers A and C at 1 each so the same MS-rejection / misconception
+    // strings don't dominate every single round; ensures students see variety.
+    return pickFromTiers(
+      [
+        { texts: tierA, max: 1 },
+        { texts: tierB, looseDedup: true, max: 2 },
+        { texts: tierC, max: 1 },
+        tierD,
+        tierE,
+      ],
+      3, [correctText]);
   }
   function distractorsForImprovement(question, correctPair) {
+    const correctText = correctPair.improvement;
     const ownImpFps = new Set(question.pairs.map(p => fingerprint(p.improvement)));
-    // Tier 1: same-question OTHER-pair improvements - they're valid fixes for
-    // this experiment but address a different limitation. Most pedagogical:
-    // student must match limitation -> improvement specifically.
-    const tier1 = question.pairs
+
+    // Tier A: same-question OTHER-pair improvements - valid fixes for THIS
+    // experiment but address a different limitation. Highly pedagogical.
+    const tierA = question.pairs
       .filter(p => p.letter !== correctPair.letter && p.improvement)
       .map(p => p.improvement);
 
-    // Tier 2: explicit MS rejections for improvements ("repeat readings" etc.)
-    const tier2 = (question.rejected_improvements || [])
+    // Tier B: slight variations of the correct improvement.
+    const tierB = variantsOf(correctText, correctPair.underlined_in_improvement || []);
+
+    // Tier C: explicit MS rejections for improvements.
+    const tierC = (question.rejected_improvements || [])
       .filter(t => !ownImpFps.has(fingerprint(t)));
 
-    // Tier 3 / 4: tag-matched / fallback cross-question improvements.
+    // Tier D: misconceptions filtered by apparatus tag applicability.
+    const tierD = applicableMisconceptions(question, "improvement");
+
+    // Tier E / F: cross-question by tag overlap, then anywhere.
     const myTags = new Set(question.tags || []);
-    const tier3 = [];
-    const tier4 = [];
+    const tierE = [], tierF = [];
     for (const x of allImprovements) {
       if (x.qid === question.id) continue;
       if (ownImpFps.has(fingerprint(x.text))) continue;
       const otherQ = questionsById[x.qid];
       const overlap = otherQ && (otherQ.tags || []).some(t => myTags.has(t));
-      if (overlap) tier3.push(x.text);
-      else tier4.push(x.text);
+      (overlap ? tierE : tierF).push(x.text);
     }
-    return pickFromTiers([tier1, tier2, tier3, tier4], 3, [correctPair.improvement]);
+    // Same capping rationale as limitations: keep the mix varied.
+    return pickFromTiers(
+      [
+        tierA,                                      // same-Q other pairs (best)
+        { texts: tierB, looseDedup: true, max: 2 }, // variants
+        { texts: tierC, max: 1 },                   // MS rejected improvements
+        { texts: tierD, max: 1 },                   // misconceptions
+        tierE,                                      // tag-matched cross-Q
+        tierF,                                      // anywhere fallback
+      ],
+      3, [correctText]);
   }
 
   // ---- DOM helpers ----
@@ -615,7 +812,7 @@ header .subtitle {
     }
 
     // Phase 1: limitation MCQ.
-    const limitationOptions = [pair.limitation, ...distractorsForLimitation(question, pair.limitation)];
+    const limitationOptions = [pair.limitation, ...distractorsForLimitation(question, pair)];
     shuffleInPlace(limitationOptions, Math.floor(Math.random() * 1e9));
 
     const promptLim = $("div", { class: "prompt" }, "Identify a limitation of this experiment:");
@@ -778,6 +975,8 @@ def main():
                         "letter": p["letter"],
                         "limitation": p["limitation"],
                         "improvement": p["improvement"],
+                        "underlined_in_limitation": p.get("underlined_in_limitation", []),
+                        "underlined_in_improvement": p.get("underlined_in_improvement", []),
                     }
                     for p in q["pairs"]
                     if p["limitation"] and p["improvement"]  # skip any orphans

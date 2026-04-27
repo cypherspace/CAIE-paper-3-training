@@ -25,6 +25,11 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
 
+try:
+    import pdfplumber  # for underline detection (graphics-aware)
+except ImportError:
+    pdfplumber = None
+
 REPO = Path(__file__).resolve().parent.parent
 PAPERS = REPO / "papers"
 DATA = REPO / "data"
@@ -38,6 +43,8 @@ class Pair:
     letter: str
     limitation: str
     improvement: str = ""
+    underlined_in_limitation: list[str] = field(default_factory=list)
+    underlined_in_improvement: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -506,6 +513,148 @@ def compute_tags(experiment_intro: str, procedure_text: str) -> list[str]:
     return out[:12]  # cap
 
 
+# ---------- Underline detection (pdfplumber) ----------
+
+def detect_underlined_runs(page) -> list[tuple[str, float]]:
+    """For one pdfplumber page, return list of (word_text, y_top) for underlined
+    word runs. Underlines are detected as thin horizontal rects (h<2pt, w>=5pt)
+    sitting just below a row of characters."""
+    if page is None:
+        return []
+    out: list[tuple[str, float]] = []
+    page_h = page.height
+    for r in page.rects:
+        h = abs(r["y1"] - r["y0"])
+        w = abs(r["x1"] - r["x0"])
+        if not (h < 2 and 5 < w < 250):
+            continue
+        rect_top_td = page_h - r["y1"]  # top-down y of the rect's top edge
+        chars_above = [
+            c for c in page.chars
+            if c["x1"] >= r["x0"] and c["x0"] <= r["x1"]
+            and abs(c["bottom"] - rect_top_td) < 3
+        ]
+        if not chars_above:
+            continue
+        text = "".join(ch["text"] for ch in sorted(chars_above, key=lambda c: c["x0"])).strip()
+        if not text or text.isdigit() or len(text) < 2:
+            continue
+        # The text might be a phrase like "with a reason," - keep the whole run
+        # but also split into word tokens for matching.
+        out.append((text, rect_top_td))
+    return out
+
+
+def find_letter_y_positions(page, marker_subq: str) -> list[tuple[str, float, float]]:
+    """For a Q2(h)(i) / 2(h)(ii) page, return list of (letter, y_top, x0)
+    triples - one per A-J bullet found at the bullet column. We may see the
+    same letter twice (once for limitations, once for improvements) if both
+    sections are on the same page; both occurrences are returned."""
+    if page is None:
+        return []
+    # Find the bullet column: the x0 most commonly occupied by isolated A-J
+    # uppercase chars surrounded by whitespace.
+    rows: dict[int, list] = {}
+    for c in page.chars:
+        key = round(c["top"] / 1.5)
+        rows.setdefault(key, []).append(c)
+    candidates: list[tuple[str, float, float]] = []
+    from collections import Counter
+    x_counter: Counter[int] = Counter()
+    raw: list[tuple[str, float, float]] = []
+    for _, chs in sorted(rows.items()):
+        chs = sorted(chs, key=lambda c: c["x0"])
+        for i, c in enumerate(chs):
+            if c["text"] not in "ABCDEFGHIJ":
+                continue
+            prev_t = chs[i - 1]["text"] if i > 0 else " "
+            next_t = chs[i + 1]["text"] if i + 1 < len(chs) else " "
+            if prev_t == " " and next_t == " ":
+                raw.append((c["text"], c["top"], c["x0"]))
+                x_counter[round(c["x0"])] += 1
+    if not raw:
+        return []
+    # The bullet column is the most-frequent x0 value among raw candidates.
+    bullet_x, bullet_count = x_counter.most_common(1)[0]
+    # Require at least 3 distinct lettered bullets at the same column - else
+    # the "letters" we found are likely incidental (e.g. variable names like
+    # "B" in "measure B"), not real bullet markers. Without this guard,
+    # paragraph-format MSs (e.g. m19) produce nonsense underline attributions.
+    if bullet_count < 3:
+        return []
+    for L, y, x in raw:
+        if abs(x - bullet_x) <= 1:
+            candidates.append((L, y, x))
+    # Also need at least 3 distinct letters to be confident this is a bullet
+    # column, not an inline variable.
+    distinct_letters = {L for L, _, _ in candidates}
+    if len(distinct_letters) < 3:
+        return []
+    candidates.sort(key=lambda t: t[1])
+    return candidates
+
+
+def collect_underlines_for_pairs(ms_pdf: Path, pairs: list[Pair],
+                                  lim_marker: Optional[str],
+                                  imp_marker: Optional[str]) -> None:
+    """Mutate `pairs` in place, populating each pair's underlined_in_*
+    fields by correlating underline rects with the bullet they sit under."""
+    if pdfplumber is None:
+        return
+    try:
+        with pdfplumber.open(ms_pdf) as pdf:
+            # Find pages relevant to lim/imp markers.
+            for page in pdf.pages:
+                txt = page.extract_text() or ""
+                has_lim = lim_marker and lim_marker in txt
+                has_imp = imp_marker and imp_marker in txt
+                if not (has_lim or has_imp):
+                    continue
+                underlines = detect_underlined_runs(page)
+                if not underlines:
+                    continue
+                bullets = find_letter_y_positions(page, lim_marker or imp_marker or "")
+                if not bullets:
+                    continue
+                # Locate the y of the (ii) marker line so we can split bullets
+                # into limitation vs improvement sections.
+                imp_y = None
+                if has_imp and imp_marker:
+                    rows: dict[int, list] = {}
+                    for c in page.chars:
+                        key = round(c["top"] / 1.5)
+                        rows.setdefault(key, []).append(c)
+                    for _, chs in sorted(rows.items()):
+                        line = "".join(c["text"] for c in sorted(chs, key=lambda c: c["x0"]))
+                        if imp_marker in line:
+                            imp_y = chs[0]["top"]
+                            break
+
+                # For each underline, find the LATEST bullet whose y <= underline.y.
+                # That's the bullet the underline belongs to.
+                for text, y_top in underlines:
+                    chosen = None
+                    for L, ly, _ in bullets:
+                        if ly <= y_top + 1:
+                            chosen = (L, ly)
+                        else:
+                            break
+                    if not chosen:
+                        continue
+                    L, ly = chosen
+                    in_imp = imp_y is not None and ly >= imp_y - 0.5
+                    target = next((p for p in pairs if p.letter == L), None)
+                    if not target:
+                        continue
+                    bucket = target.underlined_in_improvement if in_imp else target.underlined_in_limitation
+                    norm = re.sub(r"\s+", " ", text).strip().rstrip(",.;:")
+                    if norm and norm.lower() not in {x.lower() for x in bucket}:
+                        bucket.append(norm)
+    except Exception as e:
+        # Underline detection is best-effort; don't fail extraction on errors.
+        print(f"  underline detection failed on {ms_pdf.name}: {e}", file=sys.stderr)
+
+
 def extract_pairs(ms: Path) -> tuple[list[Pair], list[str]]:
     warns: list[str] = []
     full = pdftotext_layout(ms)
@@ -598,6 +747,10 @@ def process_pair(qp: Path, ms: Path, render_diagrams: bool = True) -> Question:
         q.rejected_limitations = parse_rejections(extract_block_text(full_ms, lim_marker))
     if imp_marker:
         q.rejected_improvements = parse_rejections(extract_block_text(full_ms, imp_marker))
+
+    # Underlined keywords per pair (mark scheme uses underline to indicate
+    # required words - perfect for "slight variation" distractor generation).
+    collect_underlines_for_pairs(ms, q.pairs, lim_marker, imp_marker)
 
     # Apparatus tags.
     q.tags = compute_tags(q.experiment, q.procedure_text)
