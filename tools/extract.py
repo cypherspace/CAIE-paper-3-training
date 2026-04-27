@@ -51,6 +51,9 @@ class Question:
     procedure_text: str = ""  # verbatim Q2 procedure (a)..(g), excluding (h) limitations Q
     page_images_b64: list[str] = field(default_factory=list)
     pairs: list[Pair] = field(default_factory=list)
+    rejected_limitations: list[str] = field(default_factory=list)  # MS "(not ...)" clauses
+    rejected_improvements: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)  # apparatus / topic keywords
     extraction_warnings: list[str] = field(default_factory=list)
 
 
@@ -366,6 +369,143 @@ def extract_paragraph_block(ms_text: str, marker: str) -> list[str]:
     return paragraphs
 
 
+# ---------- Rejection clauses & tags ----------
+
+REJECT_CLAUSE = re.compile(r"\(not\s+([^)]+)\)", re.I)
+
+
+def parse_rejections(section_text: str) -> list[str]:
+    """From a MS section (e.g. the 2(h)(i) block), pull explicitly rejected
+    answers from "(not ...)" clauses. Splits on commas, strips smart quotes.
+    Filters out residue like "on its own" qualifiers when they leave nothing."""
+    # Drop bare-number lines (the right-aligned marks column wraps into the
+    # body when the rejection clause spans multiple visual lines).
+    section_text = re.sub(r"\n\s+\d+\s*\n", "\n", section_text)
+    out: list[str] = []
+    for m in REJECT_CLAUSE.finditer(section_text):
+        body = m.group(1)
+        # Split on commas BUT only ones outside quotes - mark schemes use
+        # "X", "Y" with curly quotes. Easier: replace curly quotes, split on ",
+        # then strip surrounding straight quotes and single quotes.
+        normalised = (
+            body.replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+        )
+        # Split on "," but respect quote groupings: extract quoted phrases first.
+        quoted = re.findall(r'"([^"]+)"|\'([^\']+)\'', normalised)
+        if quoted:
+            for q in quoted:
+                phrase = (q[0] or q[1]).strip()
+                # Strip stray marks-column digits that wrapped into the phrase.
+                phrase = re.sub(r"\s+\d+\s+", " ", phrase)
+                phrase = re.sub(r"\s+", " ", phrase).strip()
+                if phrase and len(phrase) > 2:
+                    out.append(phrase)
+        else:
+            # No quotes - split on comma.
+            for piece in normalised.split(","):
+                p = piece.strip().strip("'\"")
+                # Skip qualifiers / fragments that aren't standalone answers.
+                if not p:
+                    continue
+                if p.lower() in {"on its own", "alone", "by itself"}:
+                    continue
+                if len(p) < 4:
+                    continue
+                out.append(p)
+    # Dedup, preserve order.
+    seen = set()
+    uniq: list[str] = []
+    for s in out:
+        k = re.sub(r"\s+", " ", s).strip().lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(re.sub(r"\s+", " ", s).strip())
+    return uniq
+
+
+def extract_block_text(ms_text: str, marker: str) -> str:
+    """Return the raw text of the MS section starting at the marker."""
+    pat = re.compile(r"^\s*" + re.escape(marker) + r"(?!\w)", re.M)
+    m = pat.search(ms_text)
+    if not m:
+        return ""
+    rest = ms_text[m.start():]
+    # Stop at next sub-question marker or footer.
+    for em in (
+        re.compile(r"^\s*\d+\(\w+\)(?:\(\w+\))?(?!\w)", re.M),
+        re.compile(r"^\s*©\s*UCLES", re.M),
+    ):
+        skip = len(re.match(r"\s*" + re.escape(marker), rest.lstrip()).group(0)) + (
+            len(rest) - len(rest.lstrip())
+        )
+        mm = em.search(rest, skip)
+        if mm:
+            rest = rest[: mm.start()]
+            break
+    return rest
+
+
+STOPWORDS = {
+    # Articles, prepositions, conjunctions, pronouns
+    "a", "an", "the", "of", "in", "on", "at", "to", "and", "or", "but",
+    "with", "between", "for", "from", "by", "into", "as", "this", "that",
+    "is", "was", "were", "be", "are", "you", "will", "your", "their",
+    "its", "it", "some", "any", "have", "has", "had", "been", "being",
+    # Generic experiment vocabulary that adds no apparatus signal
+    "investigate", "experiment", "experiments", "use", "using", "uses",
+    "different", "various", "varied", "varying", "value", "values",
+    "amount", "amounts", "many", "several", "first", "second", "third",
+    "two", "three", "four", "five",
+    # Common procedure boilerplate appearing in nearly every Q2
+    "need", "needed", "materials", "provided", "apparatus", "shown",
+    "place", "placed", "set", "setup", "set-up", "stand", "boss",
+    "clamp", "table", "above", "below", "before", "after", "when",
+    "while", "should", "could", "may", "might", "approximately",
+    "about", "make", "made", "carefully", "ensure", "record",
+    "recorded", "measure", "measured", "measurement", "measurements",
+    "calculate", "calculated", "shown", "show", "showing", "follow",
+    "following", "step", "steps", "diagram", "fig", "figure",
+}
+
+
+def filter_corpus_specific_tags(questions: list[Question], threshold: float = 0.4) -> None:
+    """Mutate questions in-place: drop tags that appear in more than `threshold`
+    fraction of all questions (they're not discriminative for distractor
+    clustering)."""
+    if not questions:
+        return
+    counts: dict[str, int] = {}
+    for q in questions:
+        for t in set(q.tags):
+            counts[t] = counts.get(t, 0) + 1
+    total = len(questions)
+    too_common = {t for t, c in counts.items() if c / total > threshold}
+    for q in questions:
+        q.tags = [t for t in q.tags if t not in too_common][:8]
+
+
+def compute_tags(experiment_intro: str, procedure_text: str) -> list[str]:
+    """Tokenize intro + first ~200 chars of procedure into lowercase keywords
+    used for distractor clustering. Keep words >=4 chars, drop stopwords."""
+    text = (experiment_intro or "") + " " + (procedure_text or "")[:400]
+    text = text.lower()
+    words = re.findall(r"[a-z][a-z\-]{3,}", text)
+    out: list[str] = []
+    seen = set()
+    for w in words:
+        if w in STOPWORDS:
+            continue
+        if w in seen:
+            continue
+        seen.add(w)
+        out.append(w)
+    return out[:12]  # cap
+
+
 def extract_pairs(ms: Path) -> tuple[list[Pair], list[str]]:
     warns: list[str] = []
     full = pdftotext_layout(ms)
@@ -450,6 +590,17 @@ def process_pair(qp: Path, ms: Path, render_diagrams: bool = True) -> Question:
     pairs, warns = extract_pairs(ms)
     q.pairs = pairs
     q.extraction_warnings.extend(warns)
+
+    # Rejection clauses (Tier 1 distractors).
+    full_ms = pdftotext_layout(ms)
+    lim_marker, imp_marker = find_lim_imp_markers(full_ms)
+    if lim_marker:
+        q.rejected_limitations = parse_rejections(extract_block_text(full_ms, lim_marker))
+    if imp_marker:
+        q.rejected_improvements = parse_rejections(extract_block_text(full_ms, imp_marker))
+
+    # Apparatus tags.
+    q.tags = compute_tags(q.experiment, q.procedure_text)
     return q
 
 
@@ -476,6 +627,7 @@ def main():
         if q.extraction_warnings:
             for w in q.extraction_warnings:
                 print(f"  WARN: {w}", file=sys.stderr)
+    filter_corpus_specific_tags(questions)
     out = {
         "schema_version": 1,
         "questions": [
