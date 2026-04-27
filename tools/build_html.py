@@ -121,8 +121,27 @@ header .subtitle {
 }
 .q-meta { color: var(--muted); font-size: 0.875rem; }
 .q-title { font-weight: 600; font-size: 1.05rem; }
+.split {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+  margin-top: 12px;
+}
+@media (min-width: 940px) {
+  #app { max-width: 1240px; }
+  .split {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .split > .diagram-col {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+}
 .diagram-wrap {
-  margin: 12px 0;
   background: #fafafa;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -401,30 +420,89 @@ header .subtitle {
       .slice(0, 6)
       .join(" ");
   }
+  // Build per-qid lookups for tag-overlap scoring.
+  const questionsById = Object.fromEntries(allQuestions.map(q => [q.id, q]));
+  function tagOverlap(qidA, qidB) {
+    const a = questionsById[qidA], b = questionsById[qidB];
+    if (!a || !b) return 0;
+    const setB = new Set(b.tags || []);
+    let n = 0;
+    for (const t of (a.tags || [])) if (setB.has(t)) n++;
+    return n;
+  }
+  // Pull from each tier in order until we have n unique items, dedup by
+  // fingerprint.
+  function pickFromTiers(tiers, n, excludeTexts) {
+    const exFps = new Set((excludeTexts || []).map(fingerprint));
+    const seen = new Set(exFps);
+    const out = [];
+    for (const tier of tiers) {
+      if (out.length >= n) break;
+      const shuffled = tier.slice();
+      shuffleInPlace(shuffled, Math.floor(Math.random() * 1e9));
+      for (const text of shuffled) {
+        if (out.length >= n) break;
+        const fp = fingerprint(text);
+        if (seen.has(fp)) continue;
+        seen.add(fp);
+        out.push(text);
+      }
+    }
+    return out;
+  }
   function distractorsForLimitation(question, correctText) {
-    // Pool: limitations from OTHER questions whose fingerprint doesn't match
-    // any of the current question's accepted limitations (else the "wrong"
-    // option would actually be credited here too).
+    // Avoid distractors that fingerprint-match any of THIS question's accepted
+    // limitations (else the "wrong" option would actually be credited here).
     const ownFps = new Set(question.pairs.map(p => fingerprint(p.limitation)));
-    const pool = allLimitations.filter(x =>
-      x.qid !== question.id && !ownFps.has(fingerprint(x.text)));
-    return pickN(pool, 3, [correctText]).map(x => x.text);
+
+    // Tier 1: explicit MS rejections for THIS question - the mark scheme
+    // literally lists these as "not credited" answers students often write.
+    const tier1 = (question.rejected_limitations || []).filter(t =>
+      !ownFps.has(fingerprint(t)));
+
+    // Tier 2: limitations from other questions whose apparatus tags overlap
+    // with this question's tags - same kind of experiment, different specifics,
+    // so they sound plausible (e.g. pendulum-related limitation as a distractor
+    // for a different pendulum experiment).
+    const myTags = new Set(question.tags || []);
+    const tier2 = [];
+    const tier3 = [];
+    for (const x of allLimitations) {
+      if (x.qid === question.id) continue;
+      if (ownFps.has(fingerprint(x.text))) continue;
+      const otherQ = questionsById[x.qid];
+      const overlap = otherQ && (otherQ.tags || []).some(t => myTags.has(t));
+      if (overlap) tier2.push(x.text);
+      else tier3.push(x.text);
+    }
+    return pickFromTiers([tier1, tier2, tier3], 3, [correctText]);
   }
   function distractorsForImprovement(question, correctPair) {
-    // Prefer improvements from same question's OTHER pairs (most pedagogical -
-    // they're "valid improvements for this experiment, but for a different
-    // limitation").
-    const sameQ = question.pairs
+    const ownImpFps = new Set(question.pairs.map(p => fingerprint(p.improvement)));
+    // Tier 1: same-question OTHER-pair improvements - they're valid fixes for
+    // this experiment but address a different limitation. Most pedagogical:
+    // student must match limitation -> improvement specifically.
+    const tier1 = question.pairs
       .filter(p => p.letter !== correctPair.letter && p.improvement)
-      .map(p => ({ qid: question.id, text: p.improvement }));
-    let pool = sameQ.slice();
-    if (pool.length < 3) {
-      const ownFps = new Set(question.pairs.map(p => fingerprint(p.improvement)));
-      const others = allImprovements.filter(x =>
-        x.qid !== question.id && !ownFps.has(fingerprint(x.text)));
-      pool = pool.concat(others);
+      .map(p => p.improvement);
+
+    // Tier 2: explicit MS rejections for improvements ("repeat readings" etc.)
+    const tier2 = (question.rejected_improvements || [])
+      .filter(t => !ownImpFps.has(fingerprint(t)));
+
+    // Tier 3 / 4: tag-matched / fallback cross-question improvements.
+    const myTags = new Set(question.tags || []);
+    const tier3 = [];
+    const tier4 = [];
+    for (const x of allImprovements) {
+      if (x.qid === question.id) continue;
+      if (ownImpFps.has(fingerprint(x.text))) continue;
+      const otherQ = questionsById[x.qid];
+      const overlap = otherQ && (otherQ.tags || []).some(t => myTags.has(t));
+      if (overlap) tier3.push(x.text);
+      else tier4.push(x.text);
     }
-    return pickN(pool, 3, [correctPair.improvement]).map(x => x.text);
+    return pickFromTiers([tier1, tier2, tier3, tier4], 3, [correctPair.improvement]);
   }
 
   // ---- DOM helpers ----
@@ -502,7 +580,15 @@ header .subtitle {
     card.appendChild($("div", { class: "q-title" },
       question.experiment
         ? "In this experiment, you will investigate " + question.experiment + "."
-        : "Refer to the procedure and diagrams below."));
+        : "Refer to the procedure and diagrams alongside."));
+
+    // Build split layout: diagram column (left/top) + answer column (right/bottom).
+    const split = $("div", { class: "split" });
+    const diagramCol = $("div", { class: "diagram-col" });
+    const answerCol = $("div", { class: "answer-col" });
+    split.appendChild(diagramCol);
+    split.appendChild(answerCol);
+    card.appendChild(split);
 
     // Diagrams.
     if (question.page_images_b64 && question.page_images_b64.length) {
@@ -522,8 +608,10 @@ header .subtitle {
       const tb = $("div", { class: "diagram-toolbar" }, prevBtn, counter, nextBtn);
       wrap.appendChild(img);
       wrap.appendChild(tb);
-      card.appendChild(wrap);
+      diagramCol.appendChild(wrap);
       showPage(0);
+    } else {
+      diagramCol.appendChild($("div", { class: "muted" }, "(No procedure pages captured for this question.)"));
     }
 
     // Phase 1: limitation MCQ.
@@ -531,7 +619,7 @@ header .subtitle {
     shuffleInPlace(limitationOptions, Math.floor(Math.random() * 1e9));
 
     const promptLim = $("div", { class: "prompt" }, "Identify a limitation of this experiment:");
-    card.appendChild(promptLim);
+    answerCol.appendChild(promptLim);
     const limList = $("ul", { class: "options" });
     const limFeedback = $("div", { class: "feedback", style: "display:none" });
     const limButtons = limitationOptions.map(text => {
@@ -541,8 +629,8 @@ header .subtitle {
       limList.appendChild(li);
       return btn;
     });
-    card.appendChild(limList);
-    card.appendChild(limFeedback);
+    answerCol.appendChild(limList);
+    answerCol.appendChild(limFeedback);
 
     let limCorrect = false;
     function onLimitationChoice(text, btn) {
@@ -566,15 +654,15 @@ header .subtitle {
 
     function showImprovementPhase() {
       const sep = $("hr", { style: "margin:18px 0;border:none;border-top:1px solid var(--border)" });
-      card.appendChild(sep);
+      answerCol.appendChild(sep);
 
       const limRecap = $("div", { class: "muted", style: "margin-bottom:6px" },
         $("strong", null, "Limitation: "), pair.limitation);
-      card.appendChild(limRecap);
+      answerCol.appendChild(limRecap);
 
       const promptImp = $("div", { class: "prompt" },
         "Suggest an improvement that addresses this specific limitation:");
-      card.appendChild(promptImp);
+      answerCol.appendChild(promptImp);
 
       const improvementOptions = [pair.improvement, ...distractorsForImprovement(question, pair)];
       shuffleInPlace(improvementOptions, Math.floor(Math.random() * 1e9));
@@ -587,8 +675,8 @@ header .subtitle {
         impList.appendChild(li);
         return btn;
       });
-      card.appendChild(impList);
-      card.appendChild(impFeedback);
+      answerCol.appendChild(impList);
+      answerCol.appendChild(impFeedback);
 
       let impCorrect = false;
       function onImprovementChoice(text, btn) {
@@ -622,7 +710,7 @@ header .subtitle {
             ? $("button", { class: "btn primary", onclick: () => renderRound(next.qid, next.letter) }, "Next round")
             : $("button", { class: "btn primary", onclick: () => renderStart() }, "All done — back to start"),
           $("button", { class: "btn", onclick: () => renderRound(qid, letter) }, "Repeat this one"));
-        card.appendChild(actions);
+        answerCol.appendChild(actions);
       }
     }
 
@@ -682,6 +770,9 @@ def main():
                 "paper_code": q["paper_code"],
                 "experiment": q["experiment"],
                 "page_images_b64": q.get("page_images_b64", []),
+                "tags": q.get("tags", []),
+                "rejected_limitations": q.get("rejected_limitations", []),
+                "rejected_improvements": q.get("rejected_improvements", []),
                 "pairs": [
                     {
                         "letter": p["letter"],
