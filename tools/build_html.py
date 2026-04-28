@@ -11,6 +11,99 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DATA = REPO / "data" / "questions.json"
 OUT = REPO / "physics-paper-3-q2-trainer.html"
+GAS_DIR = REPO / "google-apps-script"
+
+
+CODE_GS = """\
+/**
+ * Web App entry point. Returns the trainer HTML for embedding in Google Sites
+ * (or for opening directly via the Web App URL).
+ */
+function doGet(e) {
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('CAIE Physics 9702 Paper 3 Q2 Trainer')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Used by index.html to inline the contents of styles.html / script.html /
+ * data.html. Apps Script's HtmlService can't load multiple HTML files into a
+ * single page on its own; this helper is the standard pattern.
+ */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+"""
+
+
+APPSSCRIPT_JSON = """\
+{
+  "timeZone": "Etc/UTC",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
+}
+"""
+
+
+GAS_README = """\
+# CAIE Physics 9702 Paper 3 Q2 Trainer — Google Apps Script bundle
+
+Drop these files into a new Apps Script project to host the trainer as a Web
+App and embed it in a Google Site (the single-file HTML is too large for
+Sites' inline embed, but a Web App URL embed works fine).
+
+## Files
+
+| File | Apps Script type | Purpose |
+| --- | --- | --- |
+| `Code.gs` | Script (`.gs`) | `doGet()` Web App entry point + `include()` helper |
+| `appsscript.json` | Manifest | runtime + Web App access settings (`ANYONE_ANONYMOUS`) |
+| `index.html` | HTML | Page shell. Inlines the three other HTML files via `<?!= include('...') ?>` |
+| `styles.html` | HTML | `<style>` block |
+| `script.html` | HTML | `<script>` block (vanilla JS, no frameworks) |
+| `data.html` | HTML | Embedded JSON of all 60+ questions, mark-scheme entries, and base64 PNG procedure pages |
+
+## Importing into Apps Script
+
+1. Open https://script.google.com → **New project**.
+2. Replace the auto-generated `Code.gs` with the contents of `Code.gs` from
+   this folder.
+3. In the editor sidebar: **+** next to "Files" → **HTML** → name it `index`
+   (no extension). Paste the contents of `index.html`. Save.
+4. Repeat for `styles`, `script`, and `data`. (For `data.html` you'll be
+   pasting a few MB; the editor handles it but takes a moment.)
+5. Click the **Project Settings** gear → tick **Show "appsscript.json"
+   manifest file in editor**. Open the `appsscript.json` that now appears
+   and replace its contents with the version from this folder.
+
+## Deploying as a Web App
+
+1. **Deploy** → **New deployment** → cog icon → **Web app**.
+2. Description: anything (e.g. "Q2 trainer v1").
+3. Execute as: **Me**.
+4. Who has access: **Anyone** (for embedding in a public Google Site) or
+   **Anyone with Google account** for a school workspace.
+5. **Deploy**. Copy the **Web app URL**.
+
+## Embedding in Google Sites
+
+1. Open your Google Site → **Insert** → **Embed** → **By URL**.
+2. Paste the Web App URL.
+3. Resize the embed box to give the trainer enough room (recommended
+   minimum 900×700 on desktop).
+
+## Updating after rebuild
+
+When `tools/build_html.py` regenerates this folder (e.g. after you upload
+more papers), repaste the four HTML files into your Apps Script project and
+**Deploy → Manage deployments → ✏️ Edit → New version → Deploy**. The Web
+App URL stays the same so the Google Site embed keeps working.
+"""
 
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -212,6 +305,14 @@ header .subtitle {
 }
 .feedback.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid #f3c5c5; }
 .feedback.good { background: var(--good-bg); color: var(--good); border: 1px solid #b9dcc4; }
+.ms-quote {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #b9dcc4;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.ms-quote strong { color: var(--good); }
 .actions {
   display: flex;
   gap: 8px;
@@ -456,6 +557,50 @@ header .subtitle {
 
   function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // Naturalize a raw mark-scheme entry into a student-style answer for display
+  // as a quiz option. The original is preserved on the pair object and shown
+  // back to the student after they get the answer right, so they see the full
+  // canonical version (which may include several alternatives separated by /
+  // or parenthetical "(not ...)" rejection clauses they should know about).
+  function naturalize(text) {
+    if (!text) return text;
+    let s = String(text).trim();
+    // (Bullet letters were already stripped during extraction; we don't try
+    // to strip them again here because some MS texts legitimately start with
+    // capital variable names like "H decreases with time".)
+
+    // Drop "(not ...)" rejection clauses entirely - these belong in the
+    // post-answer feedback, not the option face.
+    s = s.replace(/\s*\(not\s+[^)]*\)\.?/gi, "");
+    // Helper to pick first alternative from an "e.g." body, splitting on
+    // /, " or ", or comma (mark schemes use these interchangeably as list
+    // separators inside e.g. lists).
+    const firstAlt = body => body.split(/\s*\/\s*|\s+or\s+|\s*,\s*/i)[0].trim();
+    // "with a reason e.g. X/Y/Z" -> ", e.g. X" (just the first example).
+    s = s.replace(/\s+with\s+(?:a\s+)?reason,?\s+e\.g\.\s*([^.]+?)(?=\.|$)/i,
+      (_m, body) => ", e.g. " + firstAlt(body));
+    // Standalone "with a reason" / "with reason" without an e.g. - just drop.
+    s = s.replace(/\s+with\s+(?:a\s+)?reason\b\s*\.?/i, "");
+    // For other "e.g. ..." trails: pick the first alternative.
+    s = s.replace(/\s*e\.g\.\s*([^.]+?)(?=\.|$)/i,
+      (_m, body) => ", e.g. " + firstAlt(body));
+    // Strip parentheses around short optional words: "(valid) conclusion"
+    // -> "valid conclusion".
+    s = s.replace(/\(([a-z][a-z\s\-]{0,14})\)/gi, "$1");
+    // Truncate slash-separated alternatives that survived ("do X / do Y").
+    s = s.replace(/\s*\/[^.]*$/, "");
+    // Tidy whitespace + punctuation. Importantly collapse repeated commas
+    // (left over by the "with a reason" -> drop transform near an e.g.).
+    s = s.replace(/\s{2,}/g, " ")
+         .replace(/,\s*,+/g, ",")
+         .replace(/\s+([.,;:])/g, "$1")
+         .replace(/\.\s*\./g, ".")
+         .trim();
+    if (s.length > 0) s = s[0].toUpperCase() + s.slice(1);
+    if (!/[.?!]$/.test(s)) s += ".";
+    return s;
   }
 
   // Generate "slight variation" distractors from the correct text by either
@@ -811,17 +956,34 @@ header .subtitle {
       diagramCol.appendChild($("div", { class: "muted" }, "(No procedure pages captured for this question.)"));
     }
 
-    // Phase 1: limitation MCQ.
-    const limitationOptions = [pair.limitation, ...distractorsForLimitation(question, pair)];
-    shuffleInPlace(limitationOptions, Math.floor(Math.random() * 1e9));
+    // Phase 1: limitation MCQ. Build options as {display, raw} pairs so we
+    // can show the polished student-style version on the button while
+    // remembering the raw mark-scheme entry to reveal in feedback.
+    const correctLimNatural = naturalize(pair.limitation);
+    const rawLimDistractors = distractorsForLimitation(question, pair);
+    const limOptionPairs = [
+      { display: correctLimNatural, raw: pair.limitation, isCorrect: true },
+      ...rawLimDistractors.map(d => ({ display: naturalize(d), raw: d, isCorrect: false })),
+    ];
+    // Dedup by display text - naturalization may have collapsed two raw
+    // options to the same surface form. Always keep index 0 (the correct
+    // option); only drop later entries that duplicate something already kept.
+    {
+      const seen = new Set([limOptionPairs[0].display]);
+      for (let i = limOptionPairs.length - 1; i >= 1; i--) {
+        if (seen.has(limOptionPairs[i].display)) limOptionPairs.splice(i, 1);
+        else seen.add(limOptionPairs[i].display);
+      }
+    }
+    shuffleInPlace(limOptionPairs, Math.floor(Math.random() * 1e9));
 
     const promptLim = $("div", { class: "prompt" }, "Identify a limitation of this experiment:");
     answerCol.appendChild(promptLim);
     const limList = $("ul", { class: "options" });
     const limFeedback = $("div", { class: "feedback", style: "display:none" });
-    const limButtons = limitationOptions.map(text => {
-      const btn = $("button", { class: "option", type: "button" }, text);
-      btn.addEventListener("click", () => onLimitationChoice(text, btn));
+    const limButtons = limOptionPairs.map(opt => {
+      const btn = $("button", { class: "option", type: "button" }, opt.display);
+      btn.addEventListener("click", () => onLimitationChoice(opt, btn));
       const li = $("li", null, btn);
       limList.appendChild(li);
       return btn;
@@ -830,15 +992,19 @@ header .subtitle {
     answerCol.appendChild(limFeedback);
 
     let limCorrect = false;
-    function onLimitationChoice(text, btn) {
+    function onLimitationChoice(opt, btn) {
       if (limCorrect) return;
-      if (text === pair.limitation) {
+      if (opt.isCorrect) {
         limCorrect = true;
         btn.classList.add("correct");
         limButtons.forEach(b => b.disabled = true);
         limFeedback.style.display = "";
         limFeedback.className = "feedback good";
-        limFeedback.textContent = "Correct — that's an accepted limitation. Now match an improvement to it.";
+        limFeedback.replaceChildren(
+          $("div", null, "Correct — that's an accepted limitation."),
+          $("div", { class: "ms-quote" },
+            $("strong", null, "Mark scheme: "),
+            pair.limitation));
         showImprovementPhase();
       } else {
         btn.classList.add("wrong");
@@ -861,13 +1027,36 @@ header .subtitle {
         "Suggest an improvement that addresses this specific limitation:");
       answerCol.appendChild(promptImp);
 
-      const improvementOptions = [pair.improvement, ...distractorsForImprovement(question, pair)];
-      shuffleInPlace(improvementOptions, Math.floor(Math.random() * 1e9));
+      const correctImpNatural = naturalize(pair.improvement);
+      const rawImpDistractors = distractorsForImprovement(question, pair);
+      const impOptionPairs = [
+        { display: correctImpNatural, raw: pair.improvement, isCorrect: true,
+          matchesLetter: pair.letter },
+        ...rawImpDistractors.map(d => {
+          const matching = question.pairs.find(p => p.improvement === d);
+          return {
+            display: naturalize(d),
+            raw: d,
+            isCorrect: false,
+            matchesLetter: matching ? matching.letter : null,
+            matchingLimitation: matching ? matching.limitation : null,
+          };
+        }),
+      ];
+      // Dedup, always keeping the correct option at index 0.
+      {
+        const seen = new Set([impOptionPairs[0].display]);
+        for (let i = impOptionPairs.length - 1; i >= 1; i--) {
+          if (seen.has(impOptionPairs[i].display)) impOptionPairs.splice(i, 1);
+          else seen.add(impOptionPairs[i].display);
+        }
+      }
+      shuffleInPlace(impOptionPairs, Math.floor(Math.random() * 1e9));
       const impList = $("ul", { class: "options" });
       const impFeedback = $("div", { class: "feedback", style: "display:none" });
-      const impButtons = improvementOptions.map(text => {
-        const btn = $("button", { class: "option", type: "button" }, text);
-        btn.addEventListener("click", () => onImprovementChoice(text, btn));
+      const impButtons = impOptionPairs.map(opt => {
+        const btn = $("button", { class: "option", type: "button" }, opt.display);
+        btn.addEventListener("click", () => onImprovementChoice(opt, btn));
         const li = $("li", null, btn);
         impList.appendChild(li);
         return btn;
@@ -876,27 +1065,32 @@ header .subtitle {
       answerCol.appendChild(impFeedback);
 
       let impCorrect = false;
-      function onImprovementChoice(text, btn) {
+      function onImprovementChoice(opt, btn) {
         if (impCorrect) return;
-        if (text === pair.improvement) {
+        if (opt.isCorrect) {
           impCorrect = true;
           btn.classList.add("correct");
           impButtons.forEach(b => b.disabled = true);
           impFeedback.style.display = "";
           impFeedback.className = "feedback good";
-          impFeedback.textContent = "Correct! That's the mark-scheme improvement for this limitation.";
+          impFeedback.replaceChildren(
+            $("div", null, "Correct! That's the mark-scheme improvement for this limitation."),
+            $("div", { class: "ms-quote" },
+              $("strong", null, "Mark scheme: "),
+              pair.improvement));
           markDone(qid, letter);
           showNextActions();
         } else {
           btn.classList.add("wrong");
           btn.disabled = true;
-          // Find which limitation this improvement actually pairs with, if any.
-          const matchingPair = question.pairs.find(p => p.improvement === text);
           impFeedback.style.display = "";
           impFeedback.className = "feedback bad";
-          impFeedback.textContent = matchingPair
-            ? `That improvement addresses a different limitation (limitation ${matchingPair.letter}: "${truncate(matchingPair.limitation, 110)}"). Pick the one that fixes the limitation you just identified.`
-            : "That improvement isn't credited for the limitation you identified. Try another option.";
+          if (opt.matchesLetter && opt.matchesLetter !== pair.letter) {
+            impFeedback.textContent =
+              `That improvement addresses a different limitation (limitation ${opt.matchesLetter}: "${truncate(opt.matchingLimitation, 110)}"). Pick the one that fixes the limitation you just identified.`;
+          } else {
+            impFeedback.textContent = "That improvement isn't credited for the limitation you identified — either it's too vague, doesn't apply to this experiment, or it's missing a key word the mark scheme requires. Try another option.";
+          }
         }
       }
 
@@ -957,6 +1151,69 @@ header .subtitle {
 """
 
 
+def split_for_gas(single_file_html: str) -> dict[str, str]:
+    """Split the assembled single-file HTML into the GAS file layout.
+
+    Returns a dict {filename: content}. The split works by extracting the
+    three inline blocks (`<style>`, `<script type="application/json">`,
+    `<script>`) into separate HTML files and replacing them in `index.html`
+    with `<?!= include('...') ?>` directives that Apps Script's HtmlService
+    template engine evaluates server-side.
+    """
+    style_re = re.compile(r"<style>([\s\S]*?)</style>", re.S)
+    data_re = re.compile(
+        r'<script type="application/json" id="quiz-data">([\s\S]*?)</script>',
+        re.S,
+    )
+    main_script_re = re.compile(
+        r'<script>(\s*"use strict";[\s\S]*?)</script>',
+        re.S,
+    )
+
+    sm = style_re.search(single_file_html)
+    dm = data_re.search(single_file_html)
+    smain = main_script_re.search(single_file_html)
+    if not (sm and dm and smain):
+        raise RuntimeError(
+            "could not locate one of <style>, <script id=quiz-data>, or main "
+            "<script> blocks - HTML structure may have drifted"
+        )
+
+    styles_html = "<style>" + sm.group(1) + "</style>\n"
+    data_html = (
+        '<script type="application/json" id="quiz-data">'
+        + dm.group(1)
+        + "</script>\n"
+    )
+    script_html = "<script>" + smain.group(1) + "</script>\n"
+
+    # Build index.html by replacing the three blocks with include directives.
+    # Replace in descending position order so earlier replacements don't shift
+    # later match offsets.
+    spans = sorted(
+        [
+            (sm.start(), sm.end(), "<?!= include('styles'); ?>"),
+            (dm.start(), dm.end(), "<?!= include('data'); ?>"),
+            (smain.start(), smain.end(), "<?!= include('script'); ?>"),
+        ],
+        key=lambda t: t[0],
+        reverse=True,
+    )
+    index = single_file_html
+    for start, end, repl in spans:
+        index = index[:start] + repl + index[end:]
+
+    return {
+        "Code.gs": CODE_GS,
+        "appsscript.json": APPSSCRIPT_JSON,
+        "index.html": index,
+        "styles.html": styles_html,
+        "script.html": script_html,
+        "data.html": data_html,
+        "README.md": GAS_README,
+    }
+
+
 def main():
     raw = json.loads(DATA.read_text())
     minimal = {
@@ -996,6 +1253,17 @@ def main():
     size_kb = OUT.stat().st_size // 1024
     print(
         f"wrote {OUT}: {n_q} questions, {n_p} answerable pairs, {n_img} diagram pages, {size_kb} KB",
+        file=sys.stderr,
+    )
+
+    # Emit the Google Apps Script bundle.
+    GAS_DIR.mkdir(exist_ok=True)
+    files = split_for_gas(out)
+    for fname, content in files.items():
+        (GAS_DIR / fname).write_text(content, encoding="utf-8")
+    print(
+        f"wrote {GAS_DIR}/ with {len(files)} files "
+        f"({', '.join(sorted(files))})",
         file=sys.stderr,
     )
 
