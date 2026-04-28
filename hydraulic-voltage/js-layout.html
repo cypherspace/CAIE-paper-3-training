@@ -1,0 +1,198 @@
+<script>
+// ===== LAYOUT =====
+// Turns STATE.slots into STATE.nodes + STATE.edges with 3D world positions.
+// Call whenever the slot list changes; particles are reseeded automatically.
+
+function layoutFromSlots() {
+  const slots = STATE.slots;
+  const N = slots.length;
+  const T = CONFIG.TANK;
+  const P = CONFIG.PIPE;
+
+  const nodes = [];
+  const edges = [];
+
+  function mkNode(opts) {
+    const n = new HNode(opts);
+    nodes.push(n);
+    return n;
+  }
+  function mkEdge(opts) {
+    const e = new HEdge(opts);
+    edges.push(e);
+    return e;
+  }
+
+  // ── geometry constants ──────────────────────────────────────────────────────
+  const W_SLOT   = 1.0;                  // x-width of a barrier slot visual
+  const Y_TOP    = 0;                    // base (floor) of all top chambers
+  const Y_MID    = T.H_INITIAL * 0.5;   // mid-height for barrier edge path
+  const Y_BOT    = -1.8;                // bottom return pipe centerline
+  const Z_FRONT  = 0.25;                // front channel z (parallel slots)
+  const Z_BACK   = P.DEPTH - 0.25;      // back channel z
+  const Z_MID    = P.DEPTH / 2;         // default z for single-channel slots
+
+  // ── compute chamber x-positions ─────────────────────────────────────────────
+  // Segments left→right: CHAMBER_0, SLOT_0, CHAMBER_1, ..., SLOT_{N-1}, CHAMBER_N
+  // CHAMBER_0 and CHAMBER_N are the end reservoirs.
+  // A chamber gets A_CAPACITOR if it is immediately LEFT of a 'capacitor' slot.
+  function chamberWidth(i) {
+    if (i === 0 || i === N) return T.WIDTH_DEFAULT;      // end reservoirs
+    if (i < N && slots[i] && slots[i].kind === 'capacitor') return T.WIDTH_CAPACITOR;
+    return T.WIDTH_DEFAULT;
+  }
+  function chamberArea(i) {
+    if (i === 0 || i === N) return T.A_DEFAULT * 1.5;   // end reservoirs are larger
+    if (i < N && slots[i] && slots[i].kind === 'capacitor') return T.A_CAPACITOR;
+    return T.A_DEFAULT;
+  }
+
+  let x = 0;
+  const chamberCX = [];    // center x of each chamber
+  const slotCX    = [];    // center x of each slot
+
+  chamberCX[0] = x + chamberWidth(0) / 2;
+  x += chamberWidth(0);
+
+  for (let i = 0; i < N; i++) {
+    slotCX[i] = x + W_SLOT / 2;
+    x += W_SLOT;
+    chamberCX[i + 1] = x + chamberWidth(i + 1) / 2;
+    x += chamberWidth(i + 1);
+  }
+
+  const totalWidth  = x;
+  const pumpCenterX = totalWidth / 2;
+
+  // ── chamber (tank) nodes ────────────────────────────────────────────────────
+  const chamberNodes = [];
+  for (let i = 0; i <= N; i++) {
+    chamberNodes.push(mkNode({
+      kind:  'tank',
+      pos:   { x: chamberCX[i], y: Y_TOP, z: Z_MID },
+      A:     chamberArea(i),
+      h:     T.H_INITIAL,
+      role:  (i === 0 || i === N) ? 'reservoir' : 'chamber',
+      label: (i === 0) ? 'L' : (i === N) ? 'R' : ('C' + i)
+    }));
+  }
+
+  // ── pump junction nodes ──────────────────────────────────────────────────────
+  // nPumpIn  ← right-side junction (bottom return, east of pump)
+  // nPumpOut ← left-side junction  (bottom return, west of pump)
+  const PUMP_ARM = CONFIG.PUMP.WIDTH / 2;
+  const nPumpIn  = mkNode({ kind: 'junction', pos: { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID }, role: 'pipe', label: 'pumpIn'  });
+  const nPumpOut = mkNode({ kind: 'junction', pos: { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID }, role: 'pipe', label: 'pumpOut' });
+
+  // ── barrier / slot edges (top section) ──────────────────────────────────────
+  for (let i = 0; i < N; i++) {
+    const sl    = slots[i];
+    const left  = chamberNodes[i];
+    const right = chamberNodes[i + 1];
+    const sx    = slotCX[i];
+
+    function barrierPath(z) {
+      return [
+        { x: left.pos.x,  y: Y_MID, z },
+        { x: sx,           y: Y_MID, z },
+        { x: right.pos.x, y: Y_MID, z }
+      ];
+    }
+
+    if (sl.kind === 'resistor' || sl.kind === 'capacitor') {
+      const k = (sl.kind === 'capacitor')
+        ? (sl.params.k != null ? sl.params.k : CONFIG.RESISTOR.K_DEFAULT)
+        : sl.params.k;
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(k), path: barrierPath(Z_MID), role: 'barrier', slotId: sl.id });
+
+    } else if (sl.kind === 'parallel') {
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(sl.params.k1), path: barrierPath(Z_FRONT), role: 'barrier', slotId: sl.id });
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(sl.params.k2), path: barrierPath(Z_BACK),  role: 'barrier', slotId: sl.id });
+
+    } else if (sl.kind === 'diode') {
+      const comp = Component.diode();
+      if (sl.params.forward === 'rl') {
+        mkEdge({ a: right.id, b: left.id, comp, path: barrierPath(Z_MID).reverse(), role: 'diode', slotId: sl.id });
+      } else {
+        mkEdge({ a: left.id, b: right.id, comp, path: barrierPath(Z_MID), role: 'diode', slotId: sl.id });
+      }
+    }
+  }
+
+  // ── bottom return pipe ───────────────────────────────────────────────────────
+  // chamberNodes[N] (right tank) → nPumpIn → pump → nPumpOut → chamberNodes[0] (left tank)
+
+  // Right drop + right return
+  mkEdge({
+    a: chamberNodes[N].id, b: nPumpIn.id,
+    comp: Component.pipe(),
+    path: [
+      { x: chamberCX[N], y: Y_TOP, z: Z_MID },
+      { x: chamberCX[N], y: Y_BOT, z: Z_MID },
+      { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID }
+    ],
+    role: 'pipe'
+  });
+
+  // Pump (voltage source)
+  const pumpEdge = mkEdge({
+    a: nPumpIn.id, b: nPumpOut.id,
+    comp: Component.pump(0),   // dP updated each frame by solver
+    path: [
+      { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID },
+      { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID }
+    ],
+    role: 'pump'
+  });
+
+  // Left return + left drop
+  mkEdge({
+    a: nPumpOut.id, b: chamberNodes[0].id,
+    comp: Component.pipe(),
+    path: [
+      { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID },
+      { x: chamberCX[0], y: Y_BOT, z: Z_MID },
+      { x: chamberCX[0], y: Y_TOP, z: Z_MID }
+    ],
+    role: 'pipe'
+  });
+
+  // ── update STATE ─────────────────────────────────────────────────────────────
+  // Preserve h values for nodes that already existed in previous layout.
+  if (STATE.nodesById) {
+    for (const n of nodes) {
+      const old = STATE.nodesById[n.label];  // match by label
+      if (old && n.kind === 'tank') n.h = old.h;
+    }
+  }
+
+  STATE.nodes       = nodes;
+  STATE.edges       = edges;
+  STATE.nodesById   = {};
+  STATE.edgesById   = {};
+  for (const n of nodes) STATE.nodesById[n.id] = n;
+  for (const e of edges) STATE.edgesById[e.id] = e;
+  STATE.pumpEdgeId  = pumpEdge.id;
+  STATE.needsLayout = false;
+  STATE.totalWidth  = totalWidth;
+
+  // Store layout geometry for the renderer.
+  STATE.layoutData = {
+    totalWidth,
+    pumpCenterX,
+    chamberCX,
+    slotCX,
+    chamberWidths: chamberCX.map((_, i) => chamberWidth(i))
+  };
+
+  // Update edge lengths
+  for (const e of edges) e.length = pathLength(e.path);
+
+  seedParticles();
+}
+
+// ── helper used by solver to get current pump dP ─────────────────────────────
+function getPumpDP() {
+  return STATE.pumpTarget * CONFIG.PUMP.MAX_DP;
+}
+</script>

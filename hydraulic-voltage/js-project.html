@@ -1,0 +1,65 @@
+<script>
+// ===== PROJECT =====
+// Cabinet axonometric projection: vertical axis is preserved (height = pressure
+// reads directly), depth is foreshortened by DEPTH_SCALE and offset by 30°
+// up-and-to-the-right. Going +z appears to recede into the scene.
+
+function project(x, y, z) {
+  z = z || 0;
+  const v = CONFIG.VIEW;
+  const dx = z * v.DEPTH_SCALE * v.COS30;
+  const dy = z * v.DEPTH_SCALE * v.SIN30;
+  return {
+    sx: v.ORIGIN_X + (x + dx) * v.PX_PER_UNIT,
+    sy: v.ORIGIN_Y - (y + dy) * v.PX_PER_UNIT
+  };
+}
+
+// Inverse: given a screen point and an assumed z, recover world (x, y).
+// Useful for hit-testing front-face geometry where z is known.
+function unprojectAtZ(sx, sy, z) {
+  z = z || 0;
+  const v = CONFIG.VIEW;
+  const dx = z * v.DEPTH_SCALE * v.COS30;
+  const dy = z * v.DEPTH_SCALE * v.SIN30;
+  return {
+    x: (sx - v.ORIGIN_X) / v.PX_PER_UNIT - dx,
+    y: (v.ORIGIN_Y - sy) / v.PX_PER_UNIT - dy
+  };
+}
+
+// Project a 3D point object {x,y,z}; returns {sx,sy}.
+function projectP(p) { return project(p.x, p.y, p.z || 0); }
+
+// Average z of a polygon (array of {x,y,z} verts) — used for painter's-algorithm sort key.
+function meanZ(poly) {
+  let s = 0, n = poly.length;
+  for (let i = 0; i < n; i++) s += (poly[i].z || 0);
+  return s / n;
+}
+
+// Sort an array of draw items in-place, back-to-front (highest z first).
+// Each item must have a `.zKey` number (caller computes via meanZ).
+function depthSort(items) {
+  items.sort((a, b) => b.zKey - a.zKey);
+}
+
+// Extrude a planar polygon at z = zFront into a 3D prism going to z = zBack.
+// `face` is an array of {x,y} 2D points; returns {front, back, sides:[poly,...]}.
+function extrudePrism(face, zFront, zBack) {
+  const front = face.map(p => ({ x: p.x, y: p.y, z: zFront }));
+  const back = face.map(p => ({ x: p.x, y: p.y, z: zBack }));
+  const sides = [];
+  const n = face.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    sides.push([
+      { x: face[i].x, y: face[i].y, z: zFront },
+      { x: face[j].x, y: face[j].y, z: zFront },
+      { x: face[j].x, y: face[j].y, z: zBack },
+      { x: face[i].x, y: face[i].y, z: zBack }
+    ]);
+  }
+  return { front, back, sides };
+}
+</script>

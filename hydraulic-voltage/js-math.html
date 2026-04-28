@@ -1,0 +1,80 @@
+<script>
+// ===== MATH =====
+// Tiny linear-algebra + utility helpers.
+
+// Solve A·x = b by Gaussian elimination with partial pivoting.
+// Matrices are at most ~25×25 here; O(n^3) is plenty.
+// Returns null on singular system.
+function solveLinear(A, b) {
+  const n = b.length;
+  const M = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const row = new Float64Array(n + 1);
+    for (let j = 0; j < n; j++) row[j] = A[i][j];
+    row[n] = b[i];
+    M[i] = row;
+  }
+  for (let i = 0; i < n; i++) {
+    let pivotRow = i;
+    let pivotMag = Math.abs(M[i][i]);
+    for (let k = i + 1; k < n; k++) {
+      const m = Math.abs(M[k][i]);
+      if (m > pivotMag) { pivotMag = m; pivotRow = k; }
+    }
+    if (pivotMag < CONFIG.PHYSICS.EPS_PIVOT) return null;
+    if (pivotRow !== i) {
+      const tmp = M[i]; M[i] = M[pivotRow]; M[pivotRow] = tmp;
+    }
+    const pivot = M[i][i];
+    for (let k = i + 1; k < n; k++) {
+      const factor = M[k][i] / pivot;
+      if (factor === 0) continue;
+      for (let j = i; j <= n; j++) M[k][j] -= factor * M[i][j];
+    }
+  }
+  const x = new Float64Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    let sum = M[i][n];
+    for (let j = i + 1; j < n; j++) sum -= M[i][j] * x[j];
+    x[i] = sum / M[i][i];
+  }
+  return x;
+}
+
+// Allocate a zeroed n×n dense matrix (array of Float64Array).
+function zeros(n) {
+  const M = new Array(n);
+  for (let i = 0; i < n; i++) M[i] = new Float64Array(n);
+  return M;
+}
+
+// MNA conductance stamp: add k to diag entries (i,i) and (j,j), subtract from (i,j) and (j,i).
+// Pass -1 for a Dirichlet/grounded node (its row/col is not in the matrix).
+function mnaStamp(G, i, j, k) {
+  if (i >= 0) G[i][i] += k;
+  if (j >= 0) G[j][j] += k;
+  if (i >= 0 && j >= 0) {
+    G[i][j] -= k;
+    G[j][i] -= k;
+  }
+}
+
+// MNA voltage-source stamp into the augmented system. The voltage source forces
+// p_pos − p_neg = V. Allocate one extra unknown (current through source) at
+// row/col `srcIdx` ≥ n.
+//   (pos row, srcIdx col) = +1   |   (srcIdx row, pos col) = +1
+//   (neg row, srcIdx col) = −1   |   (srcIdx row, neg col) = −1
+//   (srcIdx row, RHS)     = V
+function mnaStampVSource(G, b, posIdx, negIdx, srcIdx, V) {
+  if (posIdx >= 0) { G[posIdx][srcIdx] += 1; G[srcIdx][posIdx] += 1; }
+  if (negIdx >= 0) { G[negIdx][srcIdx] -= 1; G[srcIdx][negIdx] -= 1; }
+  b[srcIdx] += V;
+}
+
+// General-purpose helpers.
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+function approxEq(a, b, eps) { return Math.abs(a - b) <= (eps || 1e-9); }
+function dist2D(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); }
+</script>

@@ -1,0 +1,150 @@
+<script>
+// ===== MAIN =====
+
+// ── Particle seeding ──────────────────────────────────────────────────────────
+function seedParticles() {
+  STATE.particles = [];
+  const edges = STATE.edges.filter(e => e.path.length >= 2);
+  if (!edges.length) return;
+  for (let i = 0; i < CONFIG.PARTICLE.COUNT; i++) {
+    const e = edges[Math.floor(Math.random() * edges.length)];
+    STATE.particles.push({
+      edgeId:  e.id,
+      s:       Math.random(),
+      zJitter: (Math.random() - 0.5) * 2   // -1..1, used in render for visual spread
+    });
+  }
+}
+
+// ── Particle advection ────────────────────────────────────────────────────────
+function advectParticles(dt) {
+  const edges = STATE.edges;
+  if (!edges.length) return;
+
+  // Build adjacency for particle hand-off: nodeId → outgoing edges, incoming edges
+  const adj = {};
+  for (const n of STATE.nodes) adj[n.id] = { out: [], inc: [] };
+  for (const e of edges) {
+    if (adj[e.a]) adj[e.a].out.push(e);
+    if (adj[e.b]) adj[e.b].inc.push(e);
+  }
+
+  for (const p of STATE.particles) {
+    const e = STATE.edgesById[p.edgeId];
+    if (!e) { reassignParticle(p, edges); continue; }
+
+    const v = e.Q / (e.areaPipe * e.length) * CONFIG.PARTICLE.SPEED_VISUAL_GAIN;
+    p.s += v * dt;
+
+    if (p.s > 1) {
+      // Exited at node b — pick a downstream edge
+      const nodeId   = e.b;
+      const nexts    = (adj[nodeId] || {}).out || [];
+      const nextEdge = pickNextEdge(nexts, p.s - 1);
+      if (nextEdge) { p.edgeId = nextEdge.id; p.s = 0; }
+      else { p.s = 1; }      // dead end: freeze
+    } else if (p.s < 0) {
+      // Exited at node a in reverse — pick an incoming edge going the other way
+      const nodeId   = e.a;
+      const nexts    = (adj[nodeId] || {}).inc || [];
+      const nextEdge = pickNextEdge(nexts, 0);
+      if (nextEdge) { p.edgeId = nextEdge.id; p.s = 1; }
+      else { p.s = 0; }
+    }
+  }
+}
+
+function pickNextEdge(candidates, _bias) {
+  const flowing = candidates.filter(e => Math.abs(e.Q) > 1e-6);
+  if (!flowing.length) {
+    // All stagnant: pick randomly
+    return candidates[Math.floor(Math.random() * candidates.length)] || null;
+  }
+  // Weighted by |Q|
+  const total = flowing.reduce((s, e) => s + Math.abs(e.Q), 0);
+  let r = Math.random() * total;
+  for (const e of flowing) { r -= Math.abs(e.Q); if (r <= 0) return e; }
+  return flowing[flowing.length - 1];
+}
+
+function reassignParticle(p, edges) {
+  const e = edges[Math.floor(Math.random() * edges.length)];
+  p.edgeId = e.id; p.s = Math.random();
+}
+
+// ── Schematic mix animation ───────────────────────────────────────────────────
+function updateSchematicMix(dt) {
+  const target = STATE.schematicWanted ? 1 : 0;
+  const speed  = 3;   // transition completes in ~0.33 s
+  if (STATE.schematicMix < target) STATE.schematicMix = Math.min(target, STATE.schematicMix + speed * dt);
+  else if (STATE.schematicMix > target) STATE.schematicMix = Math.max(target, STATE.schematicMix - speed * dt);
+}
+
+// ── Pump ramp ─────────────────────────────────────────────────────────────────
+// pumpTarget tracks the slider; pumpTarget is used directly (no ramp needed since
+// the slider itself provides smooth input). The pump dP is set inside the solver.
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+let _prevTime = null;
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function frame(timestamp) {
+  requestAnimationFrame(frame);
+
+  const dt = (_prevTime == null) ? 0 : Math.min((timestamp - _prevTime) / 1000, 0.1);
+  _prevTime = timestamp;
+  STATE.tNow = timestamp;
+
+  // Rebuild layout if slots changed
+  if (STATE.needsLayout) {
+    layoutFromSlots();
+    renderSlotCarousel();
+  }
+
+  // Animate schematic blend
+  updateSchematicMix(dt);
+
+  // Physics
+  if (dt > 0) {
+    physicsTick(dt);
+    advectParticles(dt);
+  }
+
+  // Draw
+  drawFrame(ctx, timestamp);
+
+  // Update probe badge text
+  updateProbes();
+}
+
+// ── Initialisation ────────────────────────────────────────────────────────────
+function init() {
+  // Default circuit: pump + two resistor slots
+  STATE.slots = [
+    Slot.resistor(0.6),
+    Slot.resistor(0.6)
+  ];
+  STATE.pumpTarget   = 0;
+  STATE.schematicMix = 0;
+  STATE.schematicWanted = false;
+  STATE.tStart = performance.now();
+
+  setupControls();
+  renderSlotCarousel();
+
+  // Hide loading overlay
+  const loading = document.getElementById('loading');
+  loading.classList.add('hidden');
+  setTimeout(() => { loading.style.display = 'none'; }, 400);
+
+  requestAnimationFrame(frame);
+}
+
+// Start once DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>

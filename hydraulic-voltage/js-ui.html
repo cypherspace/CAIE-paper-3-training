@@ -1,0 +1,326 @@
+<script>
+// ===== UI =====
+
+// ── Slot carousel ─────────────────────────────────────────────────────────────
+function renderSlotCarousel() {
+  const el    = document.getElementById('slot-carousel');
+  const slots = STATE.slots;
+  el.innerHTML = '';
+
+  function addBtn(index) {
+    const btn = document.createElement('span');
+    btn.className = 'slot-insert'; btn.textContent = '+'; btn.title = 'Insert slot here';
+    btn.addEventListener('click', () => insertSlot(index));
+    el.appendChild(btn);
+  }
+
+  addBtn(0);
+  slots.forEach((sl, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'slot-tile' + (STATE.selectedSlotId === sl.id ? ' selected' : '');
+    tile.dataset.slotId = sl.id;
+    tile.innerHTML = slotTileHTML(sl);
+    tile.addEventListener('click', () => selectSlot(sl.id));
+    el.appendChild(tile);
+    addBtn(i + 1);
+  });
+
+  if (slots.length === 0) {
+    const hint = document.createElement('span');
+    hint.className = 'help-text'; hint.textContent = 'Press + to add a barrier slot.';
+    el.appendChild(hint);
+  }
+}
+
+function slotTileHTML(sl) {
+  const icons = { resistor:'▨', parallel:'⋮▨▨', capacitor:'▭', diode:'▶|' };
+  const names = { resistor:'Resistor', parallel:'Parallel', capacitor:'Capacitor', diode:'Diode' };
+  let param = '';
+  if (sl.kind === 'resistor' || sl.kind === 'capacitor') param = 'k=' + (+sl.params.k).toFixed(2);
+  else if (sl.kind === 'parallel') param = 'k₁=' + (+sl.params.k1).toFixed(1) + ' k₂=' + (+sl.params.k2).toFixed(1);
+  else if (sl.kind === 'diode') param = sl.params.forward === 'rl' ? '← RL' : '→ LR';
+  return `<span class="slot-icon">${icons[sl.kind]||'?'}</span>
+          <span class="slot-label">${names[sl.kind]||sl.kind}</span>
+          <span class="slot-param">${param}</span>`;
+}
+
+function selectSlot(id) {
+  STATE.selectedSlotId = (STATE.selectedSlotId === id) ? null : id;
+  renderSlotCarousel();
+  if (STATE.selectedSlotId) openParamPanel(STATE.selectedSlotId);
+  else closeParamPanel();
+}
+
+function insertSlot(atIndex) {
+  const menu = document.createElement('div');
+  menu.style.cssText = 'position:fixed;background:#fff;border:1px solid #ccc;border-radius:8px;padding:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.15)';
+  const kinds = ['resistor','parallel','capacitor','diode'];
+  const labels = ['Resistor (barrier)','Parallel pair','Capacitor (wide tank)','Diode (one-way valve)'];
+  kinds.forEach((k, i) => {
+    const item = document.createElement('div');
+    item.textContent = labels[i];
+    item.style.cssText = 'padding:6px 12px;cursor:pointer;border-radius:4px;font-size:.85rem;';
+    item.addEventListener('mouseenter', () => { item.style.background = '#eef0f3'; });
+    item.addEventListener('mouseleave', () => { item.style.background = ''; });
+    item.addEventListener('click', () => {
+      document.body.removeChild(menu);
+      if (STATE.slots.length >= CONFIG.SLOTS.MAX) return;
+      let sl;
+      if (k === 'resistor')  sl = Slot.resistor();
+      else if (k === 'parallel')  sl = Slot.parallel();
+      else if (k === 'capacitor') sl = Slot.capacitor();
+      else                        sl = Slot.diode();
+      STATE.slots.splice(atIndex, 0, sl);
+      STATE.needsLayout = true;
+      renderSlotCarousel();
+    });
+    menu.appendChild(item);
+  });
+  menu.style.left = (window.innerWidth / 2 - 80) + 'px';
+  menu.style.top  = '120px';
+  document.body.appendChild(menu);
+  const dismiss = (e) => { if (!menu.contains(e.target)) { document.body.contains(menu) && document.body.removeChild(menu); document.removeEventListener('click', dismiss); } };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
+}
+
+// ── Param panel ───────────────────────────────────────────────────────────────
+function openParamPanel(slotId) {
+  const sl  = STATE.slots.find(s => s.id === slotId); if (!sl) return;
+  const pan = document.getElementById('param-panel');
+  pan.classList.remove('hidden');
+  pan.style.top  = '8px';
+  pan.style.right = '8px';
+  pan.innerHTML   = buildParamHTML(sl);
+
+  // Wire param sliders
+  pan.querySelectorAll('input[type="range"]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const out = pan.querySelector('#pv-' + inp.dataset.param);
+      if (out) out.textContent = (+inp.value).toFixed(2);
+      sl.params[inp.dataset.param] = +inp.value;
+      STATE.needsLayout = true;
+      renderSlotCarousel();
+    });
+  });
+  // Delete
+  pan.querySelector('#del-slot').addEventListener('click', () => {
+    STATE.slots = STATE.slots.filter(s => s.id !== slotId);
+    STATE.selectedSlotId = null;
+    STATE.needsLayout = true;
+    closeParamPanel();
+    renderSlotCarousel();
+  });
+  // Flip diode
+  const flip = pan.querySelector('#flip-diode');
+  if (flip) flip.addEventListener('click', () => {
+    sl.params.forward = (sl.params.forward === 'rl') ? 'lr' : 'rl';
+    STATE.needsLayout = true;
+    openParamPanel(slotId); // re-render panel
+    renderSlotCarousel();
+  });
+}
+
+function buildParamHTML(sl) {
+  const names = { resistor:'Resistor', parallel:'Parallel pair', capacitor:'Capacitor', diode:'Diode' };
+  let fields = '';
+  const slider = (param, label, val, min, max, step) => `
+    <label><div class="param-row"><span>${label}</span><span class="param-value" id="pv-${param}">${(+val).toFixed(2)}</span></div>
+    <input type="range" data-param="${param}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
+  if (sl.kind === 'resistor')  fields = slider('k','Conductance k (high=easy flow)',sl.params.k,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05);
+  if (sl.kind === 'capacitor') fields = slider('k','Barrier conductance k',sl.params.k,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05)
+    + `<p style="font-size:.75rem;color:var(--muted);margin:4px 0">Large chamber to the left stores charge (C = ${CONFIG.TANK.A_CAPACITOR}). RC time constant ≈ ${(1/sl.params.k * CONFIG.TANK.A_CAPACITOR).toFixed(1)} s.</p>`;
+  if (sl.kind === 'parallel')  fields = slider('k1','Front channel k₁',sl.params.k1,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05)
+    + slider('k2','Back channel k₂',sl.params.k2,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05);
+  if (sl.kind === 'diode')     fields = `<p style="font-size:.8rem;margin:4px 0">Forward direction: <strong>${sl.params.forward === 'rl' ? '← right-to-left' : '→ left-to-right'}</strong></p>
+    <button id="flip-diode" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">Flip direction</button>`;
+  return `<h3>${names[sl.kind]}</h3>${fields}
+    <div class="param-actions"><button id="del-slot" class="danger">Delete slot</button></div>`;
+}
+
+function closeParamPanel() {
+  const pan = document.getElementById('param-panel');
+  pan.classList.add('hidden');
+  STATE.selectedSlotId = null;
+  renderSlotCarousel();
+}
+
+// ── Probe badges ──────────────────────────────────────────────────────────────
+function addProbeBadge(probe) {
+  const overlay = document.getElementById('probe-overlay');
+  const div = document.createElement('div');
+  div.className = 'probe-badge'; div.id = 'probe-' + probe.id;
+  div.style.left = probe.screenPos.x + 'px'; div.style.top = probe.screenPos.y + 'px';
+  div.innerHTML = probeHTML(probe);
+  makeDraggable(div, probe);
+  div.addEventListener('contextmenu', e => { e.preventDefault(); removeProbe(probe.id); });
+  overlay.appendChild(div);
+}
+
+function probeHTML(probe) {
+  let html = `<div class="probe-label">${probe.kind === 'pressure' ? 'ΔP / V' : 'Q / I'}</div>`;
+  if (probe.kind === 'pressure') {
+    const na = STATE.nodesById[probe.refs[0]], nb = STATE.nodesById[probe.refs[1]];
+    if (na && nb) {
+      const dp = na.p - nb.p;
+      html += `<div class="probe-value">${dp.toFixed(3)} Pa</div>`;
+      html += `<div class="probe-equiv">${(dp * CONFIG.EQUIV.PRESSURE_PER_VOLT).toFixed(3)} V</div>`;
+    } else {
+      html += `<div class="probe-value">—</div>`;
+    }
+  } else {
+    const e = STATE.edgesById[probe.refs[0]];
+    if (e) {
+      html += `<div class="probe-value">${e.Q.toFixed(3)} L/s</div>`;
+      html += `<div class="probe-equiv">${(e.Q * CONFIG.EQUIV.FLOW_PER_AMP).toFixed(3)} A</div>`;
+    } else { html += `<div class="probe-value">—</div>`; }
+  }
+  html += `<div style="font-size:.65rem;color:var(--muted);margin-top:2px">Right-click to remove</div>`;
+  return html;
+}
+
+function updateProbes() {
+  for (const probe of STATE.probes) {
+    const badge = document.getElementById('probe-' + probe.id);
+    if (badge) badge.innerHTML = probeHTML(probe);
+  }
+}
+
+function removeProbe(id) {
+  STATE.probes = STATE.probes.filter(p => p.id !== id);
+  const badge = document.getElementById('probe-' + id);
+  if (badge) badge.remove();
+}
+
+function makeDraggable(el, probe) {
+  let ox, oy, sx, sy;
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    ox = probe.screenPos.x; oy = probe.screenPos.y; sx = e.clientX; sy = e.clientY;
+    el.classList.add('dragging'); el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    if (!el.classList.contains('dragging')) return;
+    probe.screenPos.x = ox + (e.clientX - sx); probe.screenPos.y = oy + (e.clientY - sy);
+    el.style.left = probe.screenPos.x + 'px'; el.style.top = probe.screenPos.y + 'px';
+  });
+  el.addEventListener('pointerup', () => el.classList.remove('dragging'));
+}
+
+// ── Canvas hit-testing ────────────────────────────────────────────────────────
+function canvasXY(e) {
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  const scale = CONFIG.VIEW.W / rect.width;
+  return { sx: (e.clientX - rect.left) * scale, sy: (e.clientY - rect.top) * scale };
+}
+
+function nearestNode(sx, sy) {
+  let best = null, bestD = Infinity;
+  for (const n of STATE.nodes) {
+    const sp = project(n.pos.x, n.pos.y, n.pos.z);
+    const d  = dist2D(sx, sy, sp.sx, sp.sy);
+    if (d < bestD && d < 25) { bestD = d; best = n; }
+  }
+  return best;
+}
+
+function nearestEdge(sx, sy) {
+  let best = null, bestD = Infinity;
+  for (const e of STATE.edges) {
+    const m  = edgePointAt(e.path, 0.5);
+    const sp = project(m.x, m.y, m.z || 0);
+    const d  = dist2D(sx, sy, sp.sx, sp.sy);
+    if (d < bestD && d < 25) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+// ── Controls setup ────────────────────────────────────────────────────────────
+function setupControls() {
+  // Pump slider
+  const slider = document.getElementById('pump-slider');
+  const readout = document.getElementById('pump-readout');
+  slider.addEventListener('input', () => {
+    STATE.pumpTarget = +slider.value;
+    readout.textContent = Math.round(STATE.pumpTarget * 100) + '%';
+  });
+
+  // Schematic toggle
+  document.getElementById('schematic-toggle').addEventListener('change', e => {
+    STATE.schematicWanted = e.target.checked;
+  });
+
+  // Probe buttons
+  document.getElementById('add-pressure-probe').addEventListener('click', () => {
+    setProbeMode('pressure-pick-1');
+  });
+  document.getElementById('add-flow-probe').addEventListener('click', () => {
+    setProbeMode('flow-pick');
+  });
+
+  // Reset
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    for (const n of STATE.nodes) if (n.kind === 'tank') n.h = CONFIG.TANK.H_INITIAL;
+    STATE.pumpTarget = 0;
+    document.getElementById('pump-slider').value = 0;
+    document.getElementById('pump-readout').textContent = '0%';
+  });
+
+  // Canvas events
+  const canvas = document.getElementById('canvas');
+  canvas.addEventListener('mousemove', onCanvasMouseMove);
+  canvas.addEventListener('click', onCanvasClick);
+  canvas.addEventListener('mouseleave', () => { STATE.hoverNodeId = null; STATE.hoverEdgeId = null; });
+
+  // Close param panel on Escape
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeParamPanel(); setProbeMode(null); } });
+}
+
+function setProbeMode(mode) {
+  STATE.probeMode = mode;
+  STATE.probePickBuffer = null;
+  const canvas = document.getElementById('canvas');
+  canvas.className = mode ? 'probing' : '';
+  const pp = document.getElementById('add-pressure-probe');
+  const fp = document.getElementById('add-flow-probe');
+  pp.classList.toggle('active', mode === 'pressure-pick-1' || mode === 'pressure-pick-2');
+  fp.classList.toggle('active', mode === 'flow-pick');
+}
+
+function onCanvasMouseMove(e) {
+  const { sx, sy } = canvasXY(e);
+  if (STATE.probeMode === 'pressure-pick-1' || STATE.probeMode === 'pressure-pick-2') {
+    const n = nearestNode(sx, sy);
+    STATE.hoverNodeId = n ? n.id : null;
+    STATE.hoverEdgeId = null;
+  } else if (STATE.probeMode === 'flow-pick') {
+    const ed = nearestEdge(sx, sy);
+    STATE.hoverEdgeId = ed ? ed.id : null;
+    STATE.hoverNodeId = null;
+  } else {
+    STATE.hoverNodeId = null; STATE.hoverEdgeId = null;
+  }
+}
+
+function onCanvasClick(e) {
+  if (!STATE.probeMode) return;
+  const { sx, sy } = canvasXY(e);
+  if (STATE.probeMode === 'pressure-pick-1') {
+    const n = nearestNode(sx, sy); if (!n) return;
+    STATE.probePickBuffer = n.id;
+    setProbeMode('pressure-pick-2');
+  } else if (STATE.probeMode === 'pressure-pick-2') {
+    const n = nearestNode(sx, sy); if (!n || n.id === STATE.probePickBuffer) return;
+    const probe = new Probe({ kind: 'pressure', refs: [STATE.probePickBuffer, n.id], screenPos: { x: 20, y: 20 } });
+    STATE.probes.push(probe);
+    addProbeBadge(probe);
+    setProbeMode(null);
+  } else if (STATE.probeMode === 'flow-pick') {
+    const ed = nearestEdge(sx, sy); if (!ed) return;
+    const probe = new Probe({ kind: 'flow', refs: [ed.id], screenPos: { x: 20, y: 20 } });
+    STATE.probes.push(probe);
+    addProbeBadge(probe);
+    setProbeMode(null);
+  }
+}
+</script>

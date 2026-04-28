@@ -1,0 +1,81 @@
+<script>
+// ===== CONFIG =====
+// All tunable constants in one place. Units are scaled and abstract:
+// 1 pressure unit ≡ 1 V-equivalent; 1 conductance unit ≡ 1 A/V; 1 length unit ≈ 0.1 m.
+
+const CONFIG = {
+  VIEW: {
+    W: 1200,
+    H: 700,
+    PX_PER_UNIT: 48,
+    ORIGIN_X: 80,        // world x=0 maps here on canvas
+    ORIGIN_Y: 600,       // world y=0 maps here (positive y goes up on canvas)
+    COS30: Math.cos(Math.PI / 6),
+    SIN30: 0.5,
+    DEPTH_SCALE: 0.5     // cabinet projection foreshortening factor
+  },
+
+  PHYSICS: {
+    DT_DISPLAY: 1 / 60,  // target display dt
+    DT_PHYS_MAX: 1 / 60, // physics tick cap
+    DT_PHYS_MIN: 1 / 480,
+    MAX_SUB_STEPS: 8,
+    EPS_LEAK: 1e-6,
+    EPS_PIVOT: 1e-12,
+    DIODE_MAX_ITER: 6
+  },
+
+  TANK: {
+    H_INITIAL: 2.0,      // starting water height in every chamber
+    H_MAX: 5.5,          // visual clamp; standpipe overflow guard
+    A_DEFAULT: 0.6,      // surface area of a normal inter-barrier chamber
+    A_CAPACITOR: 4.0,    // surface area of a "wide chamber" capacitor slot
+    WIDTH_DEFAULT: 1.6,  // world units of x-extent per default chamber
+    WIDTH_CAPACITOR: 2.6
+  },
+
+  PIPE: {
+    RADIUS: 0.45,
+    DEPTH: 1.6,          // z-extent of the loop (front-to-back)
+    AREA: Math.PI * 0.45 * 0.45,
+    BOTTOM_Y: 0.5,       // y of return-pipe centerline
+    BOTTOM_HEIGHT: 0.9   // visual radius of return pipe
+  },
+
+  PUMP: {
+    MAX_DP: 4.0,
+    R_INT: 0.05,
+    RAMP_TIME: 1.0,
+    WIDTH: 1.6
+  },
+
+  RESISTOR: {
+    K_DEFAULT: 0.6,
+    K_MIN: 0.05,
+    K_MAX: 6.0
+  },
+
+  DIODE: {
+    K_FWD: 2.5,
+    K_REVERSE: 1e-5,
+    HYST_BAND: 0.005     // |Q| must exceed this to flip state
+  },
+
+  PARTICLE: {
+    COUNT: 320,
+    BASE_SIZE: 1.8,      // px radius
+    SPEED_VISUAL_GAIN: 1.4
+  },
+
+  SLOTS: {
+    MIN: 1,
+    MAX: 8
+  },
+
+  // Electrical-equivalent display gain (purely cosmetic, for probe labels)
+  EQUIV: {
+    PRESSURE_PER_VOLT: 1.0,   // 1 pressure unit = 1 V
+    FLOW_PER_AMP: 1.0         // 1 flow unit = 1 A
+  }
+};
+</script>

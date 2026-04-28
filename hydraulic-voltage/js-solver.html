@@ -1,0 +1,185 @@
+<script>
+// ===== SOLVER =====
+// Modified Nodal Analysis (MNA) each physics tick.
+//
+// Topology: tank nodes are Dirichlet (p = h, known).
+// The only unknowns each frame are the two pump junction nodes (nPumpIn, nPumpOut)
+// plus one pump-current variable — so the matrix is at most 3×3.
+// Barrier edges (between tank nodes) have their flow computed directly: Q = k·(hA − hB).
+// Diodes are iterated: start with kFwd, flip to kReverse if Q would be reverse.
+// Tank heights are integrated with semi-implicit Euler after the solve.
+
+function solveStep(dt) {
+  const edges     = STATE.edges;
+  const nodesById = STATE.nodesById;
+
+  // Update pump dP in the pump edge component.
+  const pumpEdge = STATE.edgesById[STATE.pumpEdgeId];
+  if (pumpEdge) pumpEdge.comp.dP = getPumpDP();
+
+  // ── categorise nodes ────────────────────────────────────────────────────────
+  // Tanks are Dirichlet; junctions are unknowns.
+  const junctions = STATE.nodes.filter(n => n.kind === 'junction');
+  const tanks      = STATE.nodes.filter(n => n.kind === 'tank');
+  const M = junctions.length;
+
+  // Assign solver indices to junction nodes.
+  for (let i = 0; i < M; i++) junctions[i].solverIdx = i;
+  for (const t of tanks) t.solverIdx = -1;
+
+  // Set tank pressures from current heights.
+  for (const t of tanks) t.p = t.h;
+
+  // ── iterative solve with diode check ────────────────────────────────────────
+  // All diode edges have their state carried over from the last frame.
+  const diodeEdges = edges.filter(e => e.comp.kind === 'diode');
+  let converged = false;
+
+  for (let iter = 0; iter < CONFIG.PHYSICS.DIODE_MAX_ITER && !converged; iter++) {
+    const result = runMNA(edges, junctions, tanks, M, nodesById);
+    if (!result) break;  // singular — leave Q at 0
+
+    // Assign pressures to junction nodes.
+    for (let i = 0; i < M; i++) junctions[i].p = result.x[i];
+
+    // Compute Q for every edge.
+    computeEdgeFlows(edges, nodesById, result);
+
+    // Check diodes.
+    converged = true;
+    for (const de of diodeEdges) {
+      const c = de.comp;
+      const forward = (de.Q >= 0);
+      const wantsForward = forward ? 'forward' : 'reverse';
+      if (wantsForward !== c.state) {
+        // Only flip if |Q| exceeds hysteresis band.
+        if (Math.abs(de.Q) > CONFIG.DIODE.HYST_BAND) {
+          c.state = wantsForward;
+          converged = false;
+        }
+      }
+    }
+  }
+
+  // ── integrate tank heights ──────────────────────────────────────────────────
+  integrateHeights(dt, tanks, edges, nodesById);
+}
+
+// Build and solve the MNA system; return { x, iPump } or null on failure.
+function runMNA(edges, junctions, tanks, M, nodesById) {
+  const pumpEdge  = STATE.edgesById[STATE.pumpEdgeId];
+  // One extra unknown for the pump current (voltage source augmentation).
+  const SZ = M + 1;
+  const PUMP_ROW = M;
+
+  const G = zeros(SZ);
+  const b = new Float64Array(SZ);
+
+  // ── stamp each edge ─────────────────────────────────────────────────────────
+  for (const e of edges) {
+    const c  = e.comp;
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+    const ia = na.solverIdx;  // -1 if tank (Dirichlet)
+    const ib = nb.solverIdx;
+
+    if (c.kind === 'pump') {
+      // Ideal voltage source: pumpOut (b) is the + terminal, pumpIn (a) is −.
+      // Stamp: b − a = dP.
+      mnaStampVSource(G, b, ib, ia, PUMP_ROW, c.dP);
+      continue;
+    }
+
+    // Effective conductance for this edge.
+    let k;
+    if (c.kind === 'diode') {
+      k = (c.state === 'forward') ? c.kFwd : c.kReverse;
+    } else {
+      k = c.k;  // resistor or pipe
+    }
+
+    // Dirichlet handling: tank contributions move to RHS.
+    // Four cases: (junction-junction), (tank-junction), (junction-tank), (tank-tank).
+    if (ia >= 0 && ib >= 0) {
+      mnaStamp(G, ia, ib, k);
+    } else if (ia < 0 && ib >= 0) {
+      // na is a tank: stamp ib diagonal, add k·p_a to b[ib].
+      G[ib][ib] += k;
+      b[ib]     += k * na.p;
+    } else if (ia >= 0 && ib < 0) {
+      G[ia][ia] += k;
+      b[ia]     += k * nb.p;
+    }
+    // tank-tank: no matrix entry; Q computed directly later.
+  }
+
+  const x = solveLinear(G, b);
+  if (!x) return null;
+
+  return { x, iPump: x[PUMP_ROW] };
+}
+
+// After solving, compute Q (signed flow from .a → .b) for every edge.
+function computeEdgeFlows(edges, nodesById, result) {
+  const { x, iPump } = result;
+  const pumpEdge = STATE.edgesById[STATE.pumpEdgeId];
+
+  for (const e of edges) {
+    const c  = e.comp;
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+
+    if (c.kind === 'pump') {
+      e.Q = iPump;
+      continue;
+    }
+
+    let k;
+    if (c.kind === 'diode') {
+      k = (c.comp && c.comp.state === 'forward') ? c.kFwd : c.kReverse;
+      // Re-read from the component directly (not via c.comp which is the edge).
+      k = (e.comp.state === 'forward') ? e.comp.kFwd : e.comp.kReverse;
+    } else {
+      k = c.k;
+    }
+
+    const pa = na.p;
+    const pb = nb.p;
+    e.Q = k * (pa - pb);
+  }
+}
+
+// Semi-implicit Euler integration of tank heights.
+function integrateHeights(dt, tanks, edges, nodesById) {
+  // Compute net flow into each tank from all adjacent edges.
+  const netFlow = {};
+  for (const t of tanks) netFlow[t.id] = 0;
+
+  for (const e of edges) {
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+    // Q > 0 means flow from a → b; so tank_a loses Q, tank_b gains Q.
+    if (na.kind === 'tank') netFlow[na.id] -= e.Q;
+    if (nb.kind === 'tank') netFlow[nb.id] += e.Q;
+  }
+
+  for (const t of tanks) {
+    const dh = dt * netFlow[t.id] / t.A;
+    t.h = clamp(t.h + dh, 0, CONFIG.TANK.H_MAX);
+    t.p = t.h;   // keep pressure in sync
+  }
+}
+
+// Public entry: called from the main loop with accumulated dt.
+// Sub-steps to keep the RC time constant resolved correctly.
+function physicsTick(dt) {
+  if (STATE.needsLayout || STATE.nodes.length === 0) return;
+
+  // Determine number of sub-steps.
+  const dtPhys  = clamp(dt, 0, CONFIG.PHYSICS.DT_PHYS_MAX);
+  const nSteps  = Math.min(CONFIG.PHYSICS.MAX_SUB_STEPS, Math.max(1, Math.ceil(dtPhys / CONFIG.PHYSICS.DT_PHYS_MIN)));
+  const dtSub   = dtPhys / nSteps;
+
+  for (let i = 0; i < nSteps; i++) solveStep(dtSub);
+}
+</script>

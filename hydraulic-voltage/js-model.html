@@ -1,0 +1,132 @@
+<script>
+// ===== MODEL =====
+// Data classes for the simulation. The slot list is the source of truth for
+// the user; layoutFromSlots() expands it into nodes + edges.
+
+let _nextId = 0;
+function nextId(prefix) { return prefix + (++_nextId); }
+
+class HNode {
+  constructor(opts) {
+    this.id = opts.id || nextId('n');
+    this.kind = opts.kind || 'junction';   // 'junction' | 'tank'
+    this.pos = opts.pos || { x: 0, y: 0, z: 0 };
+    // Tank-only state:
+    this.A = (opts.A != null) ? opts.A : null;       // surface area (null = junction)
+    this.h = (opts.h != null) ? opts.h : 0;          // current water height
+    this.label = opts.label || '';
+    this.slotId = opts.slotId || null;               // which Slot this node belongs to
+    // Visual hint for rendering — what kind of "container" this node represents:
+    //   'chamber'     — inter-barrier chamber (rectangular open tank)
+    //   'capacitor'   — wide chamber / standpipe
+    //   'reservoir'   — pump-side reservoir (left/right end of loop)
+    //   'pipe'        — junction inside the bottom return; not a free-surface tank
+    this.role = opts.role || 'pipe';
+    // Solver scratch (overwritten each frame):
+    this.p = 0;
+    this.solverIdx = -1;   // index into matrix; -1 if Dirichlet (tank) or ground
+  }
+}
+
+class HEdge {
+  constructor(opts) {
+    this.id = opts.id || nextId('e');
+    this.a = opts.a;          // HNode id
+    this.b = opts.b;          // HNode id
+    this.comp = opts.comp;    // Component (plain object)
+    this.path = opts.path || [];  // 3D centerline points {x,y,z}; ≥ 2 entries
+    this.areaPipe = (opts.areaPipe != null) ? opts.areaPipe : CONFIG.PIPE.AREA;
+    this.slotId = opts.slotId || null;
+    this.role = opts.role || 'pipe';   // 'barrier' | 'pump' | 'pipe' | 'diode'
+    // Solver outputs (positive Q = flow from a → b):
+    this.Q = 0;
+    this.length = pathLength(this.path);
+  }
+}
+
+function pathLength(path) {
+  let L = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const dx = b.x - a.x, dy = b.y - a.y, dz = (b.z || 0) - (a.z || 0);
+    L += Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+  return L || 1;
+}
+
+// Components are plain objects keyed by `kind`. The solver dispatches on `kind`.
+const Component = {
+  resistor: (k) => ({ kind: 'resistor', k: k }),
+  pump:     (dP, rInt) => ({ kind: 'pump', dP: dP, rInt: (rInt != null ? rInt : CONFIG.PUMP.R_INT) }),
+  diode:    () => ({
+    kind: 'diode',
+    kFwd: CONFIG.DIODE.K_FWD,
+    kReverse: CONFIG.DIODE.K_REVERSE,
+    state: 'forward'   // persists across frames so hysteresis is meaningful
+  }),
+  pipe:     () => ({ kind: 'resistor', k: 1e3 })   // ideal connector — very high G
+};
+
+// Slots: the user-facing topology element. Each slot expands at layout time
+// into one or more nodes/edges. Order matters: slots are walked left → right
+// around the top of the loop.
+class Slot {
+  constructor(opts) {
+    this.id = opts.id || nextId('s');
+    this.kind = opts.kind;          // 'resistor' | 'parallel' | 'capacitor' | 'diode'
+    this.params = opts.params || {};
+    this.label = opts.label || '';
+  }
+  static resistor(k) {
+    return new Slot({ kind: 'resistor', params: { k: (k != null ? k : CONFIG.RESISTOR.K_DEFAULT) } });
+  }
+  static parallel(k1, k2) {
+    return new Slot({ kind: 'parallel', params: {
+      k1: (k1 != null ? k1 : CONFIG.RESISTOR.K_DEFAULT),
+      k2: (k2 != null ? k2 : CONFIG.RESISTOR.K_DEFAULT)
+    }});
+  }
+  static capacitor(A) {
+    return new Slot({ kind: 'capacitor', params: { A: (A != null ? A : CONFIG.TANK.A_CAPACITOR) } });
+  }
+  static diode(forward) {
+    // forward: 'left-to-right' (default) or 'right-to-left'
+    return new Slot({ kind: 'diode', params: { forward: forward || 'lr' } });
+  }
+}
+
+class Probe {
+  constructor(opts) {
+    this.id = opts.id || nextId('p');
+    this.kind = opts.kind;          // 'pressure' | 'flow'
+    this.refs = opts.refs;          // pressure: [nodeIdA, nodeIdB]; flow: [edgeId]
+    this.screenPos = opts.screenPos || { x: 100, y: 100 };
+  }
+}
+
+// Root simulation state — the only mutable global. Initialized in js-main.
+const STATE = {
+  slots: [],            // Slot[]
+  nodes: [],            // HNode[]
+  edges: [],            // HEdge[]
+  nodesById: {},        // for O(1) lookup during solve
+  edgesById: {},
+  pumpEdgeId: null,     // id of the pump edge (always exists)
+  groundNodeId: null,   // id of the ground reference node (chosen at layout)
+  probes: [],
+  // UI / time state:
+  pumpPower: 0,         // 0..1 slider value
+  pumpTarget: 0,
+  schematicMix: 0,      // 0..1, animated
+  schematicWanted: false,
+  selectedSlotId: null,
+  probeMode: null,      // null | 'pressure-pick-1' | 'pressure-pick-2' | 'flow-pick'
+  probePickBuffer: null,
+  hoverNodeId: null,
+  hoverEdgeId: null,
+  particles: [],
+  tStart: 0,
+  tNow: 0,
+  needsLayout: true
+};
+</script>
