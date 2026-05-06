@@ -1,0 +1,1784 @@
+<!-- Standalone bundle. Auto-generated; edit the partial files instead. -->
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg: #f7f7f9;
+  --card: #ffffff;
+  --border: #d8d8e0;
+  --text: #1c1c1f;
+  --muted: #6b6b75;
+  --primary: #1f4fa3;
+  --primary-text: #ffffff;
+  --water: #6ea7d8;
+  --water-deep: #3a6e9f;
+  --pipe: #d8dade;
+  --pipe-shadow: #a3a6ad;
+  --barrier: #b8916e;
+  --shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04);
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  padding: 12px;
+}
+
+#app { max-width: 1280px; margin: 0 auto; }
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+header h1 { font-size: 1.25rem; margin: 0; font-weight: 600; }
+header .subtitle { color: var(--muted); font-size: 0.9rem; }
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.toolbar label {
+  font-size: 0.875rem;
+  color: var(--muted);
+  display: flex; gap: 6px; align-items: center;
+}
+.toolbar button {
+  font-family: inherit; font-size: 0.875rem;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card); color: var(--text);
+  cursor: pointer;
+}
+.toolbar button:hover { background: #eef0f3; }
+.toolbar button.active { background: #e8eef8; border-color: var(--primary); color: var(--primary); }
+.toolbar input[type="range"] { width: 160px; }
+
+#slot-carousel {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+.slot-tile {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  min-width: 78px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.slot-tile:hover { background: #eef0f3; }
+.slot-tile.selected { border-color: var(--primary); background: #e8eef8; }
+.slot-tile .slot-icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
+.slot-tile .slot-label { font-size: 0.72rem; font-weight: 600; }
+.slot-tile .slot-param { font-size: 0.7rem; color: var(--muted); font-family: monospace; }
+.slot-insert {
+  flex: 0 0 auto;
+  width: 22px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+  user-select: none;
+}
+.slot-insert:hover { background: #eef0f3; color: var(--primary); }
+
+#canvas-wrap {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+#canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1200 / 700;
+}
+#probe-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.probe-badge {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+}
+.probe-badge.dragging { cursor: grabbing; opacity: 0.85; }
+.probe-badge .probe-label { font-weight: 600; color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.probe-badge .probe-value { color: var(--text); font-family: monospace; }
+.probe-badge .probe-equiv { color: var(--primary); font-family: monospace; font-size: 0.72rem; }
+
+#param-panel {
+  position: absolute;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+  min-width: 220px;
+  pointer-events: auto;
+}
+#param-panel.hidden { display: none; }
+#param-panel h3 { margin: 0 0 8px; font-size: 0.9rem; }
+#param-panel label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.8rem; color: var(--muted);
+  margin-bottom: 8px;
+}
+#param-panel input[type="range"] { width: 100%; }
+#param-panel .param-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.param-value { font-family: monospace; color: var(--text); font-size: 0.85em; }
+#param-panel .param-actions {
+  display: flex; gap: 6px; justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+#param-panel button {
+  font-family: inherit; font-size: 0.8rem;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card); color: var(--text);
+  cursor: pointer;
+}
+#param-panel button.danger { color: #a31e1e; }
+#param-panel button:hover { background: #eef0f3; }
+
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(247, 247, 249, 0.95);
+  font-size: 1rem; color: var(--muted);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#loading.hidden { opacity: 0; }
+
+.help-text {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 6px 12px;
+  margin-top: 4px;
+}
+
+#canvas.probing { cursor: crosshair; }
+</style>
+
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Hydraulic Voltage</h1>
+      <div class="subtitle">A circuit analogy: pressure&nbsp;=&nbsp;voltage, flow&nbsp;=&nbsp;current</div>
+    </header>
+
+    <div id="slot-carousel" class="toolbar" aria-label="Circuit components"></div>
+
+    <div id="controls" class="toolbar">
+      <label>Pump
+        <input id="pump-slider" type="range" min="0" max="1" step="0.01" value="0">
+        <span id="pump-readout" class="param-value">0%</span>
+      </label>
+      <label><input id="schematic-toggle" type="checkbox"> Schematic mode</label>
+      <button id="add-pressure-probe" type="button">+ ΔP probe</button>
+      <button id="add-flow-probe" type="button">+ Flow probe</button>
+      <button id="reset-btn" type="button">Reset</button>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="canvas" width="1200" height="700"></canvas>
+      <div id="probe-overlay"></div>
+      <div id="param-panel" class="hidden"></div>
+      <div id="loading">Loading…</div>
+    </div>
+
+    <div class="help-text">
+      Click a slot to edit it; drag the pump slider to power up. Add probes to measure pressure differences (volts) and flow rates (amps). Toggle schematic mode to overlay the circuit diagram.
+    </div>
+  </div>
+
+<script>
+// ===== CONFIG =====
+// All tunable constants in one place. Units are scaled and abstract:
+// 1 pressure unit ≡ 1 V-equivalent; 1 conductance unit ≡ 1 A/V; 1 length unit ≈ 0.1 m.
+
+const CONFIG = {
+  VIEW: {
+    W: 1200,
+    H: 700,
+    PX_PER_UNIT: 48,
+    ORIGIN_X: 80,        // world x=0 maps here on canvas
+    ORIGIN_Y: 600,       // world y=0 maps here (positive y goes up on canvas)
+    COS30: Math.cos(Math.PI / 6),
+    SIN30: 0.5,
+    DEPTH_SCALE: 0.5     // cabinet projection foreshortening factor
+  },
+
+  PHYSICS: {
+    DT_DISPLAY: 1 / 60,  // target display dt
+    DT_PHYS_MAX: 1 / 60, // physics tick cap
+    DT_PHYS_MIN: 1 / 480,
+    MAX_SUB_STEPS: 8,
+    EPS_LEAK: 1e-6,
+    EPS_PIVOT: 1e-12,
+    DIODE_MAX_ITER: 6
+  },
+
+  TANK: {
+    H_INITIAL: 2.0,      // starting water height in every chamber
+    H_MAX: 5.5,          // visual clamp; standpipe overflow guard
+    A_DEFAULT: 0.6,      // surface area of a normal inter-barrier chamber
+    A_CAPACITOR: 4.0,    // surface area of a "wide chamber" capacitor slot
+    WIDTH_DEFAULT: 1.6,  // world units of x-extent per default chamber
+    WIDTH_CAPACITOR: 2.6
+  },
+
+  PIPE: {
+    RADIUS: 0.45,
+    DEPTH: 1.6,          // z-extent of the loop (front-to-back)
+    AREA: Math.PI * 0.45 * 0.45,
+    BOTTOM_Y: 0.5,       // y of return-pipe centerline
+    BOTTOM_HEIGHT: 0.9   // visual radius of return pipe
+  },
+
+  PUMP: {
+    MAX_DP: 4.0,
+    R_INT: 0.05,
+    RAMP_TIME: 1.0,
+    WIDTH: 1.6
+  },
+
+  RESISTOR: {
+    K_DEFAULT: 0.6,
+    K_MIN: 0.05,
+    K_MAX: 6.0
+  },
+
+  DIODE: {
+    K_FWD: 2.5,
+    K_REVERSE: 1e-5,
+    HYST_BAND: 0.005     // |Q| must exceed this to flip state
+  },
+
+  PARTICLE: {
+    COUNT: 320,
+    BASE_SIZE: 1.8,      // px radius
+    SPEED_VISUAL_GAIN: 1.4
+  },
+
+  SLOTS: {
+    MIN: 1,
+    MAX: 8
+  },
+
+  // Electrical-equivalent display gain (purely cosmetic, for probe labels)
+  EQUIV: {
+    PRESSURE_PER_VOLT: 1.0,   // 1 pressure unit = 1 V
+    FLOW_PER_AMP: 1.0         // 1 flow unit = 1 A
+  }
+};
+</script>
+
+<script>
+// ===== MATH =====
+// Tiny linear-algebra + utility helpers.
+
+// Solve A·x = b by Gaussian elimination with partial pivoting.
+// Matrices are at most ~25×25 here; O(n^3) is plenty.
+// Returns null on singular system.
+function solveLinear(A, b) {
+  const n = b.length;
+  const M = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const row = new Float64Array(n + 1);
+    for (let j = 0; j < n; j++) row[j] = A[i][j];
+    row[n] = b[i];
+    M[i] = row;
+  }
+  for (let i = 0; i < n; i++) {
+    let pivotRow = i;
+    let pivotMag = Math.abs(M[i][i]);
+    for (let k = i + 1; k < n; k++) {
+      const m = Math.abs(M[k][i]);
+      if (m > pivotMag) { pivotMag = m; pivotRow = k; }
+    }
+    if (pivotMag < CONFIG.PHYSICS.EPS_PIVOT) return null;
+    if (pivotRow !== i) {
+      const tmp = M[i]; M[i] = M[pivotRow]; M[pivotRow] = tmp;
+    }
+    const pivot = M[i][i];
+    for (let k = i + 1; k < n; k++) {
+      const factor = M[k][i] / pivot;
+      if (factor === 0) continue;
+      for (let j = i; j <= n; j++) M[k][j] -= factor * M[i][j];
+    }
+  }
+  const x = new Float64Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    let sum = M[i][n];
+    for (let j = i + 1; j < n; j++) sum -= M[i][j] * x[j];
+    x[i] = sum / M[i][i];
+  }
+  return x;
+}
+
+// Allocate a zeroed n×n dense matrix (array of Float64Array).
+function zeros(n) {
+  const M = new Array(n);
+  for (let i = 0; i < n; i++) M[i] = new Float64Array(n);
+  return M;
+}
+
+// MNA conductance stamp: add k to diag entries (i,i) and (j,j), subtract from (i,j) and (j,i).
+// Pass -1 for a Dirichlet/grounded node (its row/col is not in the matrix).
+function mnaStamp(G, i, j, k) {
+  if (i >= 0) G[i][i] += k;
+  if (j >= 0) G[j][j] += k;
+  if (i >= 0 && j >= 0) {
+    G[i][j] -= k;
+    G[j][i] -= k;
+  }
+}
+
+// MNA voltage-source stamp into the augmented system. The voltage source forces
+// p_pos − p_neg = V. Allocate one extra unknown (current through source) at
+// row/col `srcIdx` ≥ n.
+//   (pos row, srcIdx col) = +1   |   (srcIdx row, pos col) = +1
+//   (neg row, srcIdx col) = −1   |   (srcIdx row, neg col) = −1
+//   (srcIdx row, RHS)     = V
+function mnaStampVSource(G, b, posIdx, negIdx, srcIdx, V) {
+  if (posIdx >= 0) { G[posIdx][srcIdx] += 1; G[srcIdx][posIdx] += 1; }
+  if (negIdx >= 0) { G[negIdx][srcIdx] -= 1; G[srcIdx][negIdx] -= 1; }
+  b[srcIdx] += V;
+}
+
+// General-purpose helpers.
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+function approxEq(a, b, eps) { return Math.abs(a - b) <= (eps || 1e-9); }
+function dist2D(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); }
+</script>
+
+<script>
+// ===== PROJECT =====
+// Cabinet axonometric projection: vertical axis is preserved (height = pressure
+// reads directly), depth is foreshortened by DEPTH_SCALE and offset by 30°
+// up-and-to-the-right. Going +z appears to recede into the scene.
+
+function project(x, y, z) {
+  z = z || 0;
+  const v = CONFIG.VIEW;
+  const dx = z * v.DEPTH_SCALE * v.COS30;
+  const dy = z * v.DEPTH_SCALE * v.SIN30;
+  return {
+    sx: v.ORIGIN_X + (x + dx) * v.PX_PER_UNIT,
+    sy: v.ORIGIN_Y - (y + dy) * v.PX_PER_UNIT
+  };
+}
+
+// Inverse: given a screen point and an assumed z, recover world (x, y).
+// Useful for hit-testing front-face geometry where z is known.
+function unprojectAtZ(sx, sy, z) {
+  z = z || 0;
+  const v = CONFIG.VIEW;
+  const dx = z * v.DEPTH_SCALE * v.COS30;
+  const dy = z * v.DEPTH_SCALE * v.SIN30;
+  return {
+    x: (sx - v.ORIGIN_X) / v.PX_PER_UNIT - dx,
+    y: (v.ORIGIN_Y - sy) / v.PX_PER_UNIT - dy
+  };
+}
+
+// Project a 3D point object {x,y,z}; returns {sx,sy}.
+function projectP(p) { return project(p.x, p.y, p.z || 0); }
+
+// Average z of a polygon (array of {x,y,z} verts) — used for painter's-algorithm sort key.
+function meanZ(poly) {
+  let s = 0, n = poly.length;
+  for (let i = 0; i < n; i++) s += (poly[i].z || 0);
+  return s / n;
+}
+
+// Sort an array of draw items in-place, back-to-front (highest z first).
+// Each item must have a `.zKey` number (caller computes via meanZ).
+function depthSort(items) {
+  items.sort((a, b) => b.zKey - a.zKey);
+}
+
+// Extrude a planar polygon at z = zFront into a 3D prism going to z = zBack.
+// `face` is an array of {x,y} 2D points; returns {front, back, sides:[poly,...]}.
+function extrudePrism(face, zFront, zBack) {
+  const front = face.map(p => ({ x: p.x, y: p.y, z: zFront }));
+  const back = face.map(p => ({ x: p.x, y: p.y, z: zBack }));
+  const sides = [];
+  const n = face.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    sides.push([
+      { x: face[i].x, y: face[i].y, z: zFront },
+      { x: face[j].x, y: face[j].y, z: zFront },
+      { x: face[j].x, y: face[j].y, z: zBack },
+      { x: face[i].x, y: face[i].y, z: zBack }
+    ]);
+  }
+  return { front, back, sides };
+}
+</script>
+
+<script>
+// ===== MODEL =====
+// Data classes for the simulation. The slot list is the source of truth for
+// the user; layoutFromSlots() expands it into nodes + edges.
+
+let _nextId = 0;
+function nextId(prefix) { return prefix + (++_nextId); }
+
+class HNode {
+  constructor(opts) {
+    this.id = opts.id || nextId('n');
+    this.kind = opts.kind || 'junction';   // 'junction' | 'tank'
+    this.pos = opts.pos || { x: 0, y: 0, z: 0 };
+    // Tank-only state:
+    this.A = (opts.A != null) ? opts.A : null;       // surface area (null = junction)
+    this.h = (opts.h != null) ? opts.h : 0;          // current water height
+    this.label = opts.label || '';
+    this.slotId = opts.slotId || null;               // which Slot this node belongs to
+    // Visual hint for rendering — what kind of "container" this node represents:
+    //   'chamber'     — inter-barrier chamber (rectangular open tank)
+    //   'capacitor'   — wide chamber / standpipe
+    //   'reservoir'   — pump-side reservoir (left/right end of loop)
+    //   'pipe'        — junction inside the bottom return; not a free-surface tank
+    this.role = opts.role || 'pipe';
+    // Solver scratch (overwritten each frame):
+    this.p = 0;
+    this.solverIdx = -1;   // index into matrix; -1 if Dirichlet (tank) or ground
+  }
+}
+
+class HEdge {
+  constructor(opts) {
+    this.id = opts.id || nextId('e');
+    this.a = opts.a;          // HNode id
+    this.b = opts.b;          // HNode id
+    this.comp = opts.comp;    // Component (plain object)
+    this.path = opts.path || [];  // 3D centerline points {x,y,z}; ≥ 2 entries
+    this.areaPipe = (opts.areaPipe != null) ? opts.areaPipe : CONFIG.PIPE.AREA;
+    this.slotId = opts.slotId || null;
+    this.role = opts.role || 'pipe';   // 'barrier' | 'pump' | 'pipe' | 'diode'
+    // Solver outputs (positive Q = flow from a → b):
+    this.Q = 0;
+    this.length = pathLength(this.path);
+  }
+}
+
+function pathLength(path) {
+  let L = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const dx = b.x - a.x, dy = b.y - a.y, dz = (b.z || 0) - (a.z || 0);
+    L += Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+  return L || 1;
+}
+
+// Components are plain objects keyed by `kind`. The solver dispatches on `kind`.
+const Component = {
+  resistor: (k) => ({ kind: 'resistor', k: k }),
+  pump:     (dP, rInt) => ({ kind: 'pump', dP: dP, rInt: (rInt != null ? rInt : CONFIG.PUMP.R_INT) }),
+  diode:    () => ({
+    kind: 'diode',
+    kFwd: CONFIG.DIODE.K_FWD,
+    kReverse: CONFIG.DIODE.K_REVERSE,
+    state: 'forward'   // persists across frames so hysteresis is meaningful
+  }),
+  pipe:     () => ({ kind: 'resistor', k: 5 })   // low-resistance connector (not infinite — keeps integration stable)
+};
+
+// Slots: the user-facing topology element. Each slot expands at layout time
+// into one or more nodes/edges. Order matters: slots are walked left → right
+// around the top of the loop.
+class Slot {
+  constructor(opts) {
+    this.id = opts.id || nextId('s');
+    this.kind = opts.kind;          // 'resistor' | 'parallel' | 'capacitor' | 'diode'
+    this.params = opts.params || {};
+    this.label = opts.label || '';
+  }
+  static resistor(k) {
+    return new Slot({ kind: 'resistor', params: { k: (k != null ? k : CONFIG.RESISTOR.K_DEFAULT) } });
+  }
+  static parallel(k1, k2) {
+    return new Slot({ kind: 'parallel', params: {
+      k1: (k1 != null ? k1 : CONFIG.RESISTOR.K_DEFAULT),
+      k2: (k2 != null ? k2 : CONFIG.RESISTOR.K_DEFAULT)
+    }});
+  }
+  static capacitor(A) {
+    return new Slot({ kind: 'capacitor', params: { A: (A != null ? A : CONFIG.TANK.A_CAPACITOR) } });
+  }
+  static diode(forward) {
+    // forward: 'left-to-right' (default) or 'right-to-left'
+    return new Slot({ kind: 'diode', params: { forward: forward || 'lr' } });
+  }
+}
+
+class Probe {
+  constructor(opts) {
+    this.id = opts.id || nextId('p');
+    this.kind = opts.kind;          // 'pressure' | 'flow'
+    this.refs = opts.refs;          // pressure: [nodeIdA, nodeIdB]; flow: [edgeId]
+    this.screenPos = opts.screenPos || { x: 100, y: 100 };
+  }
+}
+
+// Root simulation state — the only mutable global. Initialized in js-main.
+const STATE = {
+  slots: [],            // Slot[]
+  nodes: [],            // HNode[]
+  edges: [],            // HEdge[]
+  nodesById: {},        // for O(1) lookup during solve
+  edgesById: {},
+  pumpEdgeId: null,     // id of the pump edge (always exists)
+  groundNodeId: null,   // id of the ground reference node (chosen at layout)
+  probes: [],
+  // UI / time state:
+  pumpPower: 0,         // 0..1 slider value
+  pumpTarget: 0,
+  schematicMix: 0,      // 0..1, animated
+  schematicWanted: false,
+  selectedSlotId: null,
+  probeMode: null,      // null | 'pressure-pick-1' | 'pressure-pick-2' | 'flow-pick'
+  probePickBuffer: null,
+  hoverNodeId: null,
+  hoverEdgeId: null,
+  particles: [],
+  tStart: 0,
+  tNow: 0,
+  needsLayout: true
+};
+</script>
+
+<script>
+// ===== LAYOUT =====
+// Turns STATE.slots into STATE.nodes + STATE.edges with 3D world positions.
+// Call whenever the slot list changes; particles are reseeded automatically.
+
+function layoutFromSlots() {
+  const slots = STATE.slots;
+  const N = slots.length;
+  const T = CONFIG.TANK;
+  const P = CONFIG.PIPE;
+
+  const nodes = [];
+  const edges = [];
+
+  function mkNode(opts) {
+    const n = new HNode(opts);
+    nodes.push(n);
+    return n;
+  }
+  function mkEdge(opts) {
+    const e = new HEdge(opts);
+    edges.push(e);
+    return e;
+  }
+
+  // ── geometry constants ──────────────────────────────────────────────────────
+  const W_SLOT   = 1.0;                  // x-width of a barrier slot visual
+  const Y_TOP    = 0;                    // base (floor) of all top chambers
+  const Y_MID    = T.H_INITIAL * 0.5;   // mid-height for barrier edge path
+  const Y_BOT    = -1.8;                // bottom return pipe centerline
+  const Z_FRONT  = 0.25;                // front channel z (parallel slots)
+  const Z_BACK   = P.DEPTH - 0.25;      // back channel z
+  const Z_MID    = P.DEPTH / 2;         // default z for single-channel slots
+
+  // ── compute chamber x-positions ─────────────────────────────────────────────
+  // Segments left→right: CHAMBER_0, SLOT_0, CHAMBER_1, ..., SLOT_{N-1}, CHAMBER_N
+  // CHAMBER_0 and CHAMBER_N are the end reservoirs.
+  // A chamber gets A_CAPACITOR if it is immediately LEFT of a 'capacitor' slot.
+  function chamberWidth(i) {
+    if (i === 0 || i === N) return T.WIDTH_DEFAULT;      // end reservoirs
+    if (i < N && slots[i] && slots[i].kind === 'capacitor') return T.WIDTH_CAPACITOR;
+    return T.WIDTH_DEFAULT;
+  }
+  function chamberArea(i) {
+    if (i === 0 || i === N) return T.A_DEFAULT * 1.5;   // end reservoirs are larger
+    if (i < N && slots[i] && slots[i].kind === 'capacitor') return T.A_CAPACITOR;
+    return T.A_DEFAULT;
+  }
+
+  let x = 0;
+  const chamberCX = [];    // center x of each chamber
+  const slotCX    = [];    // center x of each slot
+
+  chamberCX[0] = x + chamberWidth(0) / 2;
+  x += chamberWidth(0);
+
+  for (let i = 0; i < N; i++) {
+    slotCX[i] = x + W_SLOT / 2;
+    x += W_SLOT;
+    chamberCX[i + 1] = x + chamberWidth(i + 1) / 2;
+    x += chamberWidth(i + 1);
+  }
+
+  const totalWidth  = x;
+  const pumpCenterX = totalWidth / 2;
+
+  // ── chamber (tank) nodes ────────────────────────────────────────────────────
+  const chamberNodes = [];
+  for (let i = 0; i <= N; i++) {
+    chamberNodes.push(mkNode({
+      kind:  'tank',
+      pos:   { x: chamberCX[i], y: Y_TOP, z: Z_MID },
+      A:     chamberArea(i),
+      h:     T.H_INITIAL,
+      role:  (i === 0 || i === N) ? 'reservoir' : 'chamber',
+      label: (i === 0) ? 'L' : (i === N) ? 'R' : ('C' + i)
+    }));
+  }
+
+  // ── pump junction nodes ──────────────────────────────────────────────────────
+  // nPumpIn  ← right-side junction (bottom return, east of pump)
+  // nPumpOut ← left-side junction  (bottom return, west of pump)
+  const PUMP_ARM = CONFIG.PUMP.WIDTH / 2;
+  const nPumpIn  = mkNode({ kind: 'junction', pos: { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID }, role: 'pipe', label: 'pumpIn'  });
+  const nPumpOut = mkNode({ kind: 'junction', pos: { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID }, role: 'pipe', label: 'pumpOut' });
+
+  // ── barrier / slot edges (top section) ──────────────────────────────────────
+  for (let i = 0; i < N; i++) {
+    const sl    = slots[i];
+    const left  = chamberNodes[i];
+    const right = chamberNodes[i + 1];
+    const sx    = slotCX[i];
+
+    function barrierPath(z) {
+      return [
+        { x: left.pos.x,  y: Y_MID, z },
+        { x: sx,           y: Y_MID, z },
+        { x: right.pos.x, y: Y_MID, z }
+      ];
+    }
+
+    if (sl.kind === 'resistor' || sl.kind === 'capacitor') {
+      const k = (sl.kind === 'capacitor')
+        ? (sl.params.k != null ? sl.params.k : CONFIG.RESISTOR.K_DEFAULT)
+        : sl.params.k;
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(k), path: barrierPath(Z_MID), role: 'barrier', slotId: sl.id });
+
+    } else if (sl.kind === 'parallel') {
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(sl.params.k1), path: barrierPath(Z_FRONT), role: 'barrier', slotId: sl.id });
+      mkEdge({ a: left.id, b: right.id, comp: Component.resistor(sl.params.k2), path: barrierPath(Z_BACK),  role: 'barrier', slotId: sl.id });
+
+    } else if (sl.kind === 'diode') {
+      const comp = Component.diode();
+      if (sl.params.forward === 'rl') {
+        mkEdge({ a: right.id, b: left.id, comp, path: barrierPath(Z_MID).reverse(), role: 'diode', slotId: sl.id });
+      } else {
+        mkEdge({ a: left.id, b: right.id, comp, path: barrierPath(Z_MID), role: 'diode', slotId: sl.id });
+      }
+    }
+  }
+
+  // ── bottom return pipe ───────────────────────────────────────────────────────
+  // chamberNodes[N] (right tank) → nPumpIn → pump → nPumpOut → chamberNodes[0] (left tank)
+
+  // Right drop + right return
+  mkEdge({
+    a: chamberNodes[N].id, b: nPumpIn.id,
+    comp: Component.pipe(),
+    path: [
+      { x: chamberCX[N], y: Y_TOP, z: Z_MID },
+      { x: chamberCX[N], y: Y_BOT, z: Z_MID },
+      { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID }
+    ],
+    role: 'pipe'
+  });
+
+  // Pump (voltage source)
+  const pumpEdge = mkEdge({
+    a: nPumpIn.id, b: nPumpOut.id,
+    comp: Component.pump(0),   // dP updated each frame by solver
+    path: [
+      { x: pumpCenterX + PUMP_ARM, y: Y_BOT, z: Z_MID },
+      { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID }
+    ],
+    role: 'pump'
+  });
+
+  // Left return + left drop
+  mkEdge({
+    a: nPumpOut.id, b: chamberNodes[0].id,
+    comp: Component.pipe(),
+    path: [
+      { x: pumpCenterX - PUMP_ARM, y: Y_BOT, z: Z_MID },
+      { x: chamberCX[0], y: Y_BOT, z: Z_MID },
+      { x: chamberCX[0], y: Y_TOP, z: Z_MID }
+    ],
+    role: 'pipe'
+  });
+
+  // ── update STATE ─────────────────────────────────────────────────────────────
+  // Preserve h values for nodes that already existed in previous layout.
+  if (STATE.nodesById) {
+    for (const n of nodes) {
+      const old = STATE.nodesById[n.label];  // match by label
+      if (old && n.kind === 'tank') n.h = old.h;
+    }
+  }
+
+  STATE.nodes       = nodes;
+  STATE.edges       = edges;
+  STATE.nodesById   = {};
+  STATE.edgesById   = {};
+  for (const n of nodes) STATE.nodesById[n.id] = n;
+  for (const e of edges) STATE.edgesById[e.id] = e;
+  STATE.pumpEdgeId  = pumpEdge.id;
+  STATE.needsLayout = false;
+  STATE.totalWidth  = totalWidth;
+
+  // Store layout geometry for the renderer.
+  STATE.layoutData = {
+    totalWidth,
+    pumpCenterX,
+    chamberCX,
+    slotCX,
+    chamberWidths: chamberCX.map((_, i) => chamberWidth(i))
+  };
+
+  // Update edge lengths
+  for (const e of edges) e.length = pathLength(e.path);
+
+  seedParticles();
+}
+
+// ── helper used by solver to get current pump dP ─────────────────────────────
+function getPumpDP() {
+  return STATE.pumpTarget * CONFIG.PUMP.MAX_DP;
+}
+</script>
+
+<script>
+// ===== SOLVER =====
+// Modified Nodal Analysis (MNA) each physics tick.
+//
+// Topology: tank nodes are Dirichlet (p = h, known).
+// The only unknowns each frame are the two pump junction nodes (nPumpIn, nPumpOut)
+// plus one pump-current variable — so the matrix is at most 3×3.
+// Barrier edges (between tank nodes) have their flow computed directly: Q = k·(hA − hB).
+// Diodes are iterated: start with kFwd, flip to kReverse if Q would be reverse.
+// Tank heights are integrated with semi-implicit Euler after the solve.
+
+function solveStep(dt) {
+  const edges     = STATE.edges;
+  const nodesById = STATE.nodesById;
+
+  // Update pump dP in the pump edge component.
+  const pumpEdge = STATE.edgesById[STATE.pumpEdgeId];
+  if (pumpEdge) pumpEdge.comp.dP = getPumpDP();
+
+  // ── categorise nodes ────────────────────────────────────────────────────────
+  // Tanks are Dirichlet; junctions are unknowns.
+  const junctions = STATE.nodes.filter(n => n.kind === 'junction');
+  const tanks      = STATE.nodes.filter(n => n.kind === 'tank');
+  const M = junctions.length;
+
+  // Assign solver indices to junction nodes.
+  for (let i = 0; i < M; i++) junctions[i].solverIdx = i;
+  for (const t of tanks) t.solverIdx = -1;
+
+  // Set tank pressures from current heights.
+  for (const t of tanks) t.p = t.h;
+
+  // ── iterative solve with diode check ────────────────────────────────────────
+  // All diode edges have their state carried over from the last frame.
+  const diodeEdges = edges.filter(e => e.comp.kind === 'diode');
+  let converged = false;
+
+  for (let iter = 0; iter < CONFIG.PHYSICS.DIODE_MAX_ITER && !converged; iter++) {
+    const result = runMNA(edges, junctions, tanks, M, nodesById);
+    if (!result) break;  // singular — leave Q at 0
+
+    // Assign pressures to junction nodes.
+    for (let i = 0; i < M; i++) junctions[i].p = result.x[i];
+
+    // Compute Q for every edge.
+    computeEdgeFlows(edges, nodesById, result);
+
+    // Check diodes.
+    converged = true;
+    for (const de of diodeEdges) {
+      const c = de.comp;
+      const forward = (de.Q >= 0);
+      const wantsForward = forward ? 'forward' : 'reverse';
+      if (wantsForward !== c.state) {
+        // Only flip if |Q| exceeds hysteresis band.
+        if (Math.abs(de.Q) > CONFIG.DIODE.HYST_BAND) {
+          c.state = wantsForward;
+          converged = false;
+        }
+      }
+    }
+  }
+
+  // ── integrate tank heights ──────────────────────────────────────────────────
+  integrateHeights(dt, tanks, edges, nodesById);
+}
+
+// Build and solve the MNA system; return { x, iPump } or null on failure.
+function runMNA(edges, junctions, tanks, M, nodesById) {
+  const pumpEdge  = STATE.edgesById[STATE.pumpEdgeId];
+  // One extra unknown for the pump current (voltage source augmentation).
+  const SZ = M + 1;
+  const PUMP_ROW = M;
+
+  const G = zeros(SZ);
+  const b = new Float64Array(SZ);
+
+  // ── stamp each edge ─────────────────────────────────────────────────────────
+  for (const e of edges) {
+    const c  = e.comp;
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+    const ia = na.solverIdx;  // -1 if tank (Dirichlet)
+    const ib = nb.solverIdx;
+
+    if (c.kind === 'pump') {
+      // Ideal voltage source: pumpOut (b) is the + terminal, pumpIn (a) is −.
+      // Stamp: b − a = dP.
+      mnaStampVSource(G, b, ib, ia, PUMP_ROW, c.dP);
+      continue;
+    }
+
+    // Effective conductance for this edge.
+    let k;
+    if (c.kind === 'diode') {
+      k = (c.state === 'forward') ? c.kFwd : c.kReverse;
+    } else {
+      k = c.k;  // resistor or pipe
+    }
+
+    // Dirichlet handling: tank contributions move to RHS.
+    // Four cases: (junction-junction), (tank-junction), (junction-tank), (tank-tank).
+    if (ia >= 0 && ib >= 0) {
+      mnaStamp(G, ia, ib, k);
+    } else if (ia < 0 && ib >= 0) {
+      // na is a tank: stamp ib diagonal, add k·p_a to b[ib].
+      G[ib][ib] += k;
+      b[ib]     += k * na.p;
+    } else if (ia >= 0 && ib < 0) {
+      G[ia][ia] += k;
+      b[ia]     += k * nb.p;
+    }
+    // tank-tank: no matrix entry; Q computed directly later.
+  }
+
+  const x = solveLinear(G, b);
+  if (!x) return null;
+
+  return { x, iPump: x[PUMP_ROW] };
+}
+
+// After solving, compute Q (signed flow from .a → .b) for every edge.
+function computeEdgeFlows(edges, nodesById, result) {
+  const { x, iPump } = result;
+  const pumpEdge = STATE.edgesById[STATE.pumpEdgeId];
+
+  for (const e of edges) {
+    const c  = e.comp;
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+
+    if (c.kind === 'pump') {
+      // MNA voltage-source convention: i_src is the current "leaving the +
+      // terminal through the source", so internal flow from a→b is -i_src.
+      e.Q = -iPump;
+      continue;
+    }
+
+    let k;
+    if (c.kind === 'diode') {
+      k = (e.comp.state === 'forward') ? e.comp.kFwd : e.comp.kReverse;
+    } else {
+      k = c.k;
+    }
+
+    const pa = na.p;
+    const pb = nb.p;
+    e.Q = k * (pa - pb);
+  }
+}
+
+// Semi-implicit Euler integration of tank heights.
+function integrateHeights(dt, tanks, edges, nodesById) {
+  // Compute net flow into each tank from all adjacent edges.
+  const netFlow = {};
+  for (const t of tanks) netFlow[t.id] = 0;
+
+  for (const e of edges) {
+    const na = nodesById[e.a];
+    const nb = nodesById[e.b];
+    // Q > 0 means flow from a → b; so tank_a loses Q, tank_b gains Q.
+    if (na.kind === 'tank') netFlow[na.id] -= e.Q;
+    if (nb.kind === 'tank') netFlow[nb.id] += e.Q;
+  }
+
+  for (const t of tanks) {
+    const dh = dt * netFlow[t.id] / t.A;
+    t.h = clamp(t.h + dh, 0, CONFIG.TANK.H_MAX);
+    t.p = t.h;   // keep pressure in sync
+  }
+}
+
+// Public entry: called from the main loop with accumulated dt.
+// Sub-steps to keep the RC time constant resolved correctly.
+function physicsTick(dt) {
+  if (STATE.needsLayout || STATE.nodes.length === 0) return;
+
+  // Determine number of sub-steps.
+  const dtPhys  = clamp(dt, 0, CONFIG.PHYSICS.DT_PHYS_MAX);
+  const nSteps  = Math.min(CONFIG.PHYSICS.MAX_SUB_STEPS, Math.max(1, Math.ceil(dtPhys / CONFIG.PHYSICS.DT_PHYS_MIN)));
+  const dtSub   = dtPhys / nSteps;
+
+  for (let i = 0; i < nSteps; i++) solveStep(dtSub);
+}
+</script>
+
+<script>
+// ===== RENDER =====
+
+function poly(ctx, pts, fill, stroke, lw) {
+  if (!pts || pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].sx, pts[0].sy);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].sx, pts[i].sy);
+  ctx.closePath();
+  if (fill)   { ctx.fillStyle = fill;              ctx.fill();   }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+}
+function pp(pts3) { return pts3.map(p => project(p.x, p.y, p.z || 0)); }
+
+// ── Entry point ──────────────────────────────────────────────────────────────
+function drawFrame(ctx, timestamp) {
+  ctx.clearRect(0, 0, CONFIG.VIEW.W, CONFIG.VIEW.H);
+  const sm = STATE.schematicMix;
+  if (sm < 1) {
+    ctx.globalAlpha = 1 - sm;
+    drawReturnPipe(ctx);
+    drawTankShell(ctx);
+    drawWater(ctx);
+    drawBarriers(ctx);
+    drawPump(ctx, timestamp);
+    ctx.globalAlpha = 1;
+    drawParticles(ctx, 1 - sm * 0.7);
+  }
+  if (sm > 0) {
+    ctx.globalAlpha = sm;
+    drawSchematic(ctx);
+    ctx.globalAlpha = 1;
+  }
+  drawProbeMarkers(ctx);
+  drawHoverHighlight(ctx);
+}
+
+// ── Tank shell ───────────────────────────────────────────────────────────────
+function drawTankShell(ctx) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const W = ld.totalWidth, Hm = CONFIG.TANK.H_MAX, D = CONFIG.PIPE.DEPTH;
+  poly(ctx, pp([{x:0,y:0,z:D},{x:W,y:0,z:D},{x:W,y:Hm,z:D},{x:0,y:Hm,z:D}]), '#bec3cc', '#9499a2', 0.5);
+  poly(ctx, pp([{x:0,y:Hm,z:0},{x:W,y:Hm,z:0},{x:W,y:Hm,z:D},{x:0,y:Hm,z:D}]), '#b0b5be', '#9499a2', 0.5);
+  poly(ctx, pp([{x:W,y:0,z:0},{x:W,y:Hm,z:0},{x:W,y:Hm,z:D},{x:W,y:0,z:D}]),   '#c4c9d2', '#9499a2', 0.5);
+  poly(ctx, pp([{x:0,y:0,z:0},{x:0,y:Hm,z:0},{x:0,y:Hm,z:D},{x:0,y:0,z:D}]),   '#c4c9d2', '#9499a2', 0.5);
+  poly(ctx, pp([{x:0,y:0,z:0},{x:W,y:0,z:0},{x:W,y:0,z:D},{x:0,y:0,z:D}]),     '#a8adb6', '#9499a2', 0.5);
+}
+
+// ── Water ────────────────────────────────────────────────────────────────────
+function drawWater(ctx) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const D = CONFIG.PIPE.DEPTH;
+  const tNodes = STATE.nodes.filter(n => n.kind === 'tank');
+  for (let i = 0; i < tNodes.length; i++) {
+    const n = tNodes[i], h = n.h;
+    if (h < 0.01) continue;
+    const xL = ld.chamberCX[i] - ld.chamberWidths[i] / 2;
+    const xR = ld.chamberCX[i] + ld.chamberWidths[i] / 2;
+    // back
+    poly(ctx, pp([{x:xL,y:0,z:D},{x:xR,y:0,z:D},{x:xR,y:h,z:D},{x:xL,y:h,z:D}]), 'rgba(58,110,159,.65)');
+    // side walls (only outermost chambers)
+    if (i === 0)             poly(ctx, pp([{x:xL,y:0,z:0},{x:xL,y:0,z:D},{x:xL,y:h,z:D},{x:xL,y:h,z:0}]), 'rgba(78,130,180,.5)');
+    if (i === tNodes.length-1) poly(ctx, pp([{x:xR,y:0,z:0},{x:xR,y:0,z:D},{x:xR,y:h,z:D},{x:xR,y:h,z:0}]), 'rgba(78,130,180,.5)');
+    // surface top face
+    poly(ctx, pp([{x:xL,y:h,z:0},{x:xR,y:h,z:0},{x:xR,y:h,z:D},{x:xL,y:h,z:D}]), 'rgba(140,200,235,.75)', 'rgba(100,165,215,.9)', 0.8);
+    // front face
+    poly(ctx, pp([{x:xL,y:0,z:0},{x:xR,y:0,z:0},{x:xR,y:h,z:0},{x:xL,y:h,z:0}]), 'rgba(110,167,216,.8)');
+  }
+}
+
+// ── Barriers ─────────────────────────────────────────────────────────────────
+function drawBarriers(ctx) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const D = CONFIG.PIPE.DEPTH, Hm = CONFIG.TANK.H_MAX;
+  STATE.slots.forEach((sl, i) => {
+    const sx = ld.slotCX[i];
+    if (sl.kind === 'parallel') {
+      drawOneBarrier(ctx, sx, 0, D * 0.38, Hm, sl.params.k1, 'barrier');
+      drawOneBarrier(ctx, sx, D * 0.62, D, Hm, sl.params.k2, 'barrier');
+    } else if (sl.kind === 'diode') {
+      drawOneBarrier(ctx, sx, 0, D, Hm, CONFIG.DIODE.K_FWD, 'diode');
+    } else {
+      drawOneBarrier(ctx, sx, 0, D, Hm, sl.params.k != null ? sl.params.k : CONFIG.RESISTOR.K_DEFAULT, sl.kind);
+    }
+  });
+}
+
+function drawOneBarrier(ctx, cx, z0, z1, H, k, role) {
+  const hw = 0.11;
+  const fill = role === 'diode' ? '#e8c475' : role === 'capacitor' ? '#90c0e0' : '#c8a060';
+  const shadow = role === 'diode' ? '#a07820' : role === 'capacitor' ? '#5090b0' : '#8a5820';
+  // back + side + top faces
+  poly(ctx, pp([{x:cx-hw,y:0,z:z1},{x:cx+hw,y:0,z:z1},{x:cx+hw,y:H,z:z1},{x:cx-hw,y:H,z:z1}]), '#998050');
+  poly(ctx, pp([{x:cx+hw,y:0,z:z0},{x:cx+hw,y:H,z:z0},{x:cx+hw,y:H,z:z1},{x:cx+hw,y:0,z:z1}]), '#b09060');
+  poly(ctx, pp([{x:cx-hw,y:H,z:z0},{x:cx+hw,y:H,z:z0},{x:cx+hw,y:H,z:z1},{x:cx-hw,y:H,z:z1}]), '#b8a070');
+  // front face
+  const fpts = pp([{x:cx-hw,y:0,z:z0},{x:cx+hw,y:0,z:z0},{x:cx+hw,y:H,z:z0},{x:cx-hw,y:H,z:z0}]);
+  poly(ctx, fpts, fill, '#888', 0.5);
+  // hatching (resistance density)
+  const nLines = Math.max(1, Math.min(12, Math.round(2.5 / k)));
+  ctx.save();
+  ctx.beginPath();
+  fpts.forEach((p,j) => j ? ctx.lineTo(p.sx,p.sy) : ctx.moveTo(p.sx,p.sy));
+  ctx.closePath(); ctx.clip();
+  ctx.strokeStyle = shadow; ctx.lineWidth = 1; ctx.globalAlpha = 0.45;
+  for (let n = 0; n <= nLines; n++) {
+    const t = n / nLines;
+    const a = project(cx - hw, t * H, z0), b = project(cx + hw, t * H, z0);
+    ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.restore();
+  // diode arrow
+  if (role === 'diode') {
+    const m = project(cx, H * 0.5, z0);
+    const r = 7;
+    ctx.save(); ctx.fillStyle = '#7a4800'; ctx.strokeStyle = '#7a4800'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(m.sx-r,m.sy); ctx.lineTo(m.sx+r*0.6,m.sy-r*0.7); ctx.lineTo(m.sx+r*0.6,m.sy+r*0.7); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(m.sx+r*0.6,m.sy-r*0.8); ctx.lineTo(m.sx+r*0.6,m.sy+r*0.8); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── Bottom return pipe ────────────────────────────────────────────────────────
+function drawReturnPipe(ctx) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const W = ld.totalWidth, D = CONFIG.PIPE.DEPTH;
+  const yT = CONFIG.PIPE.BOTTOM_Y, yB = yT - CONFIG.PIPE.BOTTOM_HEIGHT;
+  const arm = CONFIG.PUMP.WIDTH / 2 + 0.2, pc = ld.pumpCenterX;
+  // back wall
+  poly(ctx, pp([{x:0,y:yB,z:D},{x:W,y:yB,z:D},{x:W,y:yT,z:D},{x:0,y:yT,z:D}]), '#9499a2');
+  // left and right arms (front face + bottom)
+  for (const [x0,x1] of [[0,pc-arm],[pc+arm,W]]) {
+    poly(ctx, pp([{x:x0,y:yB,z:0},{x:x1,y:yB,z:0},{x:x1,y:yT,z:0},{x:x0,y:yT,z:0}]), '#c4c9d2', '#9499a2', 0.8);
+    poly(ctx, pp([{x:x0,y:yB,z:0},{x:x1,y:yB,z:0},{x:x1,y:yB,z:D},{x:x0,y:yB,z:D}]), '#a0a5ae');
+  }
+  // end caps + vertical drop stubs
+  for (const xE of [0, W]) {
+    poly(ctx, pp([{x:xE,y:yB,z:0},{x:xE,y:yT,z:0},{x:xE,y:yT,z:D},{x:xE,y:yB,z:D}]), '#b0b5be');
+    poly(ctx, pp([{x:xE-0.12,y:yT,z:0},{x:xE+0.12,y:yT,z:0},{x:xE+0.12,y:0,z:0},{x:xE-0.12,y:0,z:0}]), '#b8bdc6', '#9499a2', 0.5);
+    poly(ctx, pp([{x:xE-0.12,y:yT,z:D},{x:xE+0.12,y:yT,z:D},{x:xE+0.12,y:0,z:D},{x:xE-0.12,y:0,z:D}]), '#9499a2');
+  }
+}
+
+// ── Pump ─────────────────────────────────────────────────────────────────────
+function drawPump(ctx, timestamp) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const cx = ld.pumpCenterX, arm = CONFIG.PUMP.WIDTH / 2;
+  const D = CONFIG.PIPE.DEPTH, yT = CONFIG.PIPE.BOTTOM_Y, yB = yT - CONFIG.PIPE.BOTTOM_HEIGHT;
+  poly(ctx, pp([{x:cx-arm,y:yB,z:D},{x:cx+arm,y:yB,z:D},{x:cx+arm,y:yT,z:D},{x:cx-arm,y:yT,z:D}]), '#2e5c8a');
+  poly(ctx, pp([{x:cx+arm,y:yB,z:0},{x:cx+arm,y:yT,z:0},{x:cx+arm,y:yT,z:D},{x:cx+arm,y:yB,z:D}]), '#234c7a');
+  poly(ctx, pp([{x:cx-arm,y:yT,z:0},{x:cx+arm,y:yT,z:0},{x:cx+arm,y:yT,z:D},{x:cx-arm,y:yT,z:D}]), '#4878a8');
+  poly(ctx, pp([{x:cx-arm,y:yB,z:0},{x:cx+arm,y:yB,z:0},{x:cx+arm,y:yT,z:0},{x:cx-arm,y:yT,z:0}]), '#3a6ea0', '#1e3d60', 1);
+  // impeller
+  const pwr = STATE.pumpTarget;
+  const ctr = project(cx, (yB + yT) / 2, 0);
+  const rOut = arm * CONFIG.VIEW.PX_PER_UNIT * 0.52;
+  const rHub = rOut * 0.22;
+  const angle = (timestamp / 1000) * pwr * Math.PI * 8;
+  ctx.save();
+  ctx.strokeStyle = pwr > 0.01 ? '#90c8ff' : '#5a85b0'; ctx.lineWidth = 2;
+  for (let s = 0; s < 6; s++) {
+    const a = angle + s / 6 * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(ctr.sx + Math.cos(a)*rHub, ctr.sy + Math.sin(a)*rHub);
+    ctx.lineTo(ctr.sx + Math.cos(a)*rOut, ctr.sy + Math.sin(a)*rOut); ctx.stroke();
+  }
+  ctx.fillStyle = '#3060a0'; ctx.beginPath(); ctx.arc(ctr.sx, ctr.sy, rHub, 0, Math.PI*2); ctx.fill();
+  if (pwr > 0.01) {
+    const lp = project(cx, yT + 0.12, 0);
+    ctx.fillStyle = '#1f4fa3'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(pwr * 100) + '%', lp.sx, lp.sy - 3);
+  }
+  ctx.restore();
+}
+
+// ── Particles ────────────────────────────────────────────────────────────────
+function edgePointAt(path, s) {
+  if (path.length < 2) return path[0] || {x:0,y:0,z:0};
+  let total = 0;
+  const segs = [];
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i-1], b = path[i];
+    const dx=b.x-a.x, dy=b.y-a.y, dz=(b.z||0)-(a.z||0);
+    const l = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1e-6;
+    segs.push(l); total += l;
+  }
+  let t = clamp(s, 0, 1) * total;
+  for (let i = 0; i < segs.length; i++) {
+    if (t <= segs[i] + 1e-9) {
+      const u = t / segs[i], a = path[i], b = path[i+1];
+      return { x: lerp(a.x,b.x,u), y: lerp(a.y,b.y,u), z: lerp(a.z||0,b.z||0,u) };
+    }
+    t -= segs[i];
+  }
+  return path[path.length - 1];
+}
+
+function drawParticles(ctx, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha != null ? alpha : 1;
+  for (const p of STATE.particles) {
+    const e = p.edgeId != null ? STATE.edgesById[p.edgeId] : null;
+    if (!e || e.path.length < 1) continue;
+    const pt = edgePointAt(e.path, p.s);
+    const sp = project(pt.x, pt.y + (p.zJitter || 0) * 0.1, (pt.z || 0) + (p.zJitter || 0) * 0.15);
+    const speed = Math.abs(e.Q);
+    const r = clamp(CONFIG.PARTICLE.BASE_SIZE * (0.6 + speed * 0.2), 1.2, 4.5);
+    ctx.beginPath(); ctx.arc(sp.sx, sp.sy, r, 0, Math.PI*2);
+    ctx.fillStyle = e.role === 'pump' ? 'rgba(80,160,255,0.8)' : 'rgba(210,235,255,0.85)';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Schematic overlay ─────────────────────────────────────────────────────────
+function drawSchematic(ctx) {
+  const ld = STATE.layoutData; if (!ld) return;
+  const Y  = 2.5;  // world y for schematic wire
+  const tN = STATE.nodes.filter(n => n.kind === 'tank');
+  ctx.save(); ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.setLineDash([]);
+  // Top wire
+  ctx.beginPath();
+  tN.forEach((n,i) => {
+    const p = project(ld.chamberCX[i], Y, 0);
+    i ? ctx.lineTo(p.sx, p.sy) : ctx.moveTo(p.sx, p.sy);
+  });
+  ctx.stroke();
+  // Bottom wire (return)
+  const lp = project(ld.chamberCX[0], Y - 3.2, 0);
+  const rp = project(ld.chamberCX[tN.length-1], Y - 3.2, 0);
+  const ll = project(ld.chamberCX[0], Y, 0);
+  const rr = project(ld.chamberCX[tN.length-1], Y, 0);
+  ctx.beginPath(); ctx.moveTo(ll.sx,ll.sy); ctx.lineTo(lp.sx,lp.sy); ctx.lineTo(rp.sx,rp.sy); ctx.lineTo(rr.sx,rr.sy); ctx.stroke();
+  ctx.setLineDash([]);
+  // Component symbols at slot positions
+  STATE.slots.forEach((sl, i) => {
+    const sp = project(ld.slotCX[i], Y, 0);
+    if      (sl.kind === 'resistor' || sl.kind === 'capacitor') schResistor(ctx, sp.sx, sp.sy, sl.params.k);
+    else if (sl.kind === 'diode')    schDiode(ctx, sp.sx, sp.sy);
+    else if (sl.kind === 'parallel') schParallel(ctx, sp.sx, sp.sy, sl.params.k1, sl.params.k2);
+  });
+  // Battery symbol
+  const bp = project(ld.pumpCenterX, Y - 3.2, 0);
+  schBattery(ctx, bp.sx, bp.sy, getPumpDP());
+  // Voltage labels on tank nodes
+  ctx.font = '10px monospace'; ctx.fillStyle = '#1f4fa3'; ctx.textAlign = 'center';
+  tN.forEach((n, i) => {
+    const p = project(ld.chamberCX[i], Y + 0.4, 0);
+    ctx.fillText(n.h.toFixed(2) + ' V', p.sx, p.sy);
+  });
+  ctx.restore();
+}
+
+function schResistor(ctx, x, y, k) {
+  const w = 20, h = 9;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.rect(x-w/2, y-h/2, w, h); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#555'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('R' + (k != null ? '=' + (+k).toFixed(1) : ''), x, y + h/2 + 9);
+}
+function schDiode(ctx, x, y) {
+  const r = 9;
+  ctx.fillStyle = '#e0a030'; ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x-r,y-r*0.7); ctx.lineTo(x-r,y+r*0.7); ctx.lineTo(x+r*0.5,y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+r*0.5,y-r*0.7); ctx.lineTo(x+r*0.5,y+r*0.7); ctx.stroke();
+}
+function schParallel(ctx, x, y, k1, k2) {
+  schResistor(ctx, x, y - 11, k1);
+  schResistor(ctx, x, y + 11, k2);
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x-12,y-22); ctx.lineTo(x-12,y+22); ctx.moveTo(x+12,y-22); ctx.lineTo(x+12,y+22); ctx.stroke();
+}
+function schBattery(ctx, x, y, dP) {
+  ctx.strokeStyle = '#1f4fa3'; ctx.lineWidth = 2.5;
+  for (let s = 0; s < 2; s++) {
+    const hw = s === 0 ? 13 : 8, px = x + (s === 0 ? -7 : 7);
+    ctx.beginPath(); ctx.moveTo(px, y-hw); ctx.lineTo(px, y+hw); ctx.stroke();
+  }
+  ctx.fillStyle = '#1f4fa3'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(dP.toFixed(2) + ' V', x, y - 18);
+}
+
+// ── Probe markers ─────────────────────────────────────────────────────────────
+function drawProbeMarkers(ctx) {
+  const canvas = document.getElementById('canvas');
+  const scale  = canvas.offsetWidth / CONFIG.VIEW.W;
+  for (const probe of STATE.probes) {
+    const badge = document.getElementById('probe-' + probe.id);
+    if (!badge) continue;
+    const bx = (probe.screenPos.x + badge.offsetWidth / 2) / scale;
+    const by = (probe.screenPos.y + badge.offsetHeight / 2) / scale;
+    const isFlow = probe.kind === 'flow';
+    ctx.save(); ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+    ctx.strokeStyle = isFlow ? '#a31e1e' : '#1f4fa3';
+    ctx.fillStyle   = isFlow ? '#a31e1e' : '#1f4fa3';
+    const targets = probe.kind === 'pressure'
+      ? probe.refs.map(id => { const n = STATE.nodesById[id]; return n ? project(n.pos.x, n.pos.y, n.pos.z) : null; })
+      : (() => { const e = STATE.edgesById[probe.refs[0]]; if (!e) return []; const m = edgePointAt(e.path,0.5); return [project(m.x,m.y,m.z||0)]; })();
+    for (const sp of targets) {
+      if (!sp) continue;
+      ctx.beginPath(); ctx.moveTo(sp.sx,sp.sy); ctx.lineTo(bx,by); ctx.stroke();
+      ctx.beginPath(); ctx.arc(sp.sx,sp.sy,4,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawHoverHighlight(ctx) {
+  if (STATE.hoverNodeId) {
+    const n = STATE.nodesById[STATE.hoverNodeId];
+    if (n) { const sp = project(n.pos.x,n.pos.y,n.pos.z); ctx.beginPath(); ctx.arc(sp.sx,sp.sy,8,0,Math.PI*2); ctx.strokeStyle='#1f4fa3'; ctx.lineWidth=2.5; ctx.stroke(); }
+  }
+  if (STATE.hoverEdgeId) {
+    const e = STATE.edgesById[STATE.hoverEdgeId];
+    if (e) { const m = edgePointAt(e.path,0.5); const sp=project(m.x,m.y,m.z||0); ctx.beginPath(); ctx.arc(sp.sx,sp.sy,7,0,Math.PI*2); ctx.strokeStyle='#a31e1e'; ctx.lineWidth=2.5; ctx.stroke(); }
+  }
+}
+</script>
+
+<script>
+// ===== UI =====
+
+// ── Slot carousel ─────────────────────────────────────────────────────────────
+function renderSlotCarousel() {
+  const el    = document.getElementById('slot-carousel');
+  const slots = STATE.slots;
+  el.innerHTML = '';
+
+  function addBtn(index) {
+    const btn = document.createElement('span');
+    btn.className = 'slot-insert'; btn.textContent = '+'; btn.title = 'Insert slot here';
+    btn.addEventListener('click', () => insertSlot(index));
+    el.appendChild(btn);
+  }
+
+  addBtn(0);
+  slots.forEach((sl, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'slot-tile' + (STATE.selectedSlotId === sl.id ? ' selected' : '');
+    tile.dataset.slotId = sl.id;
+    tile.innerHTML = slotTileHTML(sl);
+    tile.addEventListener('click', () => selectSlot(sl.id));
+    el.appendChild(tile);
+    addBtn(i + 1);
+  });
+
+  if (slots.length === 0) {
+    const hint = document.createElement('span');
+    hint.className = 'help-text'; hint.textContent = 'Press + to add a barrier slot.';
+    el.appendChild(hint);
+  }
+}
+
+function slotTileHTML(sl) {
+  const icons = { resistor:'▨', parallel:'⋮▨▨', capacitor:'▭', diode:'▶|' };
+  const names = { resistor:'Resistor', parallel:'Parallel', capacitor:'Capacitor', diode:'Diode' };
+  let param = '';
+  if (sl.kind === 'resistor' || sl.kind === 'capacitor') param = 'k=' + (+sl.params.k).toFixed(2);
+  else if (sl.kind === 'parallel') param = 'k₁=' + (+sl.params.k1).toFixed(1) + ' k₂=' + (+sl.params.k2).toFixed(1);
+  else if (sl.kind === 'diode') param = sl.params.forward === 'rl' ? '← RL' : '→ LR';
+  return `<span class="slot-icon">${icons[sl.kind]||'?'}</span>
+          <span class="slot-label">${names[sl.kind]||sl.kind}</span>
+          <span class="slot-param">${param}</span>`;
+}
+
+function selectSlot(id) {
+  STATE.selectedSlotId = (STATE.selectedSlotId === id) ? null : id;
+  renderSlotCarousel();
+  if (STATE.selectedSlotId) openParamPanel(STATE.selectedSlotId);
+  else closeParamPanel();
+}
+
+function insertSlot(atIndex) {
+  const menu = document.createElement('div');
+  menu.style.cssText = 'position:fixed;background:#fff;border:1px solid #ccc;border-radius:8px;padding:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.15)';
+  const kinds = ['resistor','parallel','capacitor','diode'];
+  const labels = ['Resistor (barrier)','Parallel pair','Capacitor (wide tank)','Diode (one-way valve)'];
+  kinds.forEach((k, i) => {
+    const item = document.createElement('div');
+    item.textContent = labels[i];
+    item.style.cssText = 'padding:6px 12px;cursor:pointer;border-radius:4px;font-size:.85rem;';
+    item.addEventListener('mouseenter', () => { item.style.background = '#eef0f3'; });
+    item.addEventListener('mouseleave', () => { item.style.background = ''; });
+    item.addEventListener('click', () => {
+      document.body.removeChild(menu);
+      if (STATE.slots.length >= CONFIG.SLOTS.MAX) return;
+      let sl;
+      if (k === 'resistor')  sl = Slot.resistor();
+      else if (k === 'parallel')  sl = Slot.parallel();
+      else if (k === 'capacitor') sl = Slot.capacitor();
+      else                        sl = Slot.diode();
+      STATE.slots.splice(atIndex, 0, sl);
+      STATE.needsLayout = true;
+      renderSlotCarousel();
+    });
+    menu.appendChild(item);
+  });
+  menu.style.left = (window.innerWidth / 2 - 80) + 'px';
+  menu.style.top  = '120px';
+  document.body.appendChild(menu);
+  const dismiss = (e) => { if (!menu.contains(e.target)) { document.body.contains(menu) && document.body.removeChild(menu); document.removeEventListener('click', dismiss); } };
+  setTimeout(() => document.addEventListener('click', dismiss), 0);
+}
+
+// ── Param panel ───────────────────────────────────────────────────────────────
+function openParamPanel(slotId) {
+  const sl  = STATE.slots.find(s => s.id === slotId); if (!sl) return;
+  const pan = document.getElementById('param-panel');
+  pan.classList.remove('hidden');
+  pan.style.top  = '8px';
+  pan.style.right = '8px';
+  pan.innerHTML   = buildParamHTML(sl);
+
+  // Wire param sliders
+  pan.querySelectorAll('input[type="range"]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const out = pan.querySelector('#pv-' + inp.dataset.param);
+      if (out) out.textContent = (+inp.value).toFixed(2);
+      sl.params[inp.dataset.param] = +inp.value;
+      STATE.needsLayout = true;
+      renderSlotCarousel();
+    });
+  });
+  // Delete
+  pan.querySelector('#del-slot').addEventListener('click', () => {
+    STATE.slots = STATE.slots.filter(s => s.id !== slotId);
+    STATE.selectedSlotId = null;
+    STATE.needsLayout = true;
+    closeParamPanel();
+    renderSlotCarousel();
+  });
+  // Flip diode
+  const flip = pan.querySelector('#flip-diode');
+  if (flip) flip.addEventListener('click', () => {
+    sl.params.forward = (sl.params.forward === 'rl') ? 'lr' : 'rl';
+    STATE.needsLayout = true;
+    openParamPanel(slotId); // re-render panel
+    renderSlotCarousel();
+  });
+}
+
+function buildParamHTML(sl) {
+  const names = { resistor:'Resistor', parallel:'Parallel pair', capacitor:'Capacitor', diode:'Diode' };
+  let fields = '';
+  const slider = (param, label, val, min, max, step) => `
+    <label><div class="param-row"><span>${label}</span><span class="param-value" id="pv-${param}">${(+val).toFixed(2)}</span></div>
+    <input type="range" data-param="${param}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
+  if (sl.kind === 'resistor')  fields = slider('k','Conductance k (high=easy flow)',sl.params.k,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05);
+  if (sl.kind === 'capacitor') fields = slider('k','Barrier conductance k',sl.params.k,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05)
+    + `<p style="font-size:.75rem;color:var(--muted);margin:4px 0">Large chamber to the left stores charge (C = ${CONFIG.TANK.A_CAPACITOR}). RC time constant ≈ ${(1/sl.params.k * CONFIG.TANK.A_CAPACITOR).toFixed(1)} s.</p>`;
+  if (sl.kind === 'parallel')  fields = slider('k1','Front channel k₁',sl.params.k1,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05)
+    + slider('k2','Back channel k₂',sl.params.k2,CONFIG.RESISTOR.K_MIN,CONFIG.RESISTOR.K_MAX,0.05);
+  if (sl.kind === 'diode')     fields = `<p style="font-size:.8rem;margin:4px 0">Forward direction: <strong>${sl.params.forward === 'rl' ? '← right-to-left' : '→ left-to-right'}</strong></p>
+    <button id="flip-diode" style="font-size:.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">Flip direction</button>`;
+  return `<h3>${names[sl.kind]}</h3>${fields}
+    <div class="param-actions"><button id="del-slot" class="danger">Delete slot</button></div>`;
+}
+
+function closeParamPanel() {
+  const pan = document.getElementById('param-panel');
+  pan.classList.add('hidden');
+  STATE.selectedSlotId = null;
+  renderSlotCarousel();
+}
+
+// ── Probe badges ──────────────────────────────────────────────────────────────
+function addProbeBadge(probe) {
+  const overlay = document.getElementById('probe-overlay');
+  const div = document.createElement('div');
+  div.className = 'probe-badge'; div.id = 'probe-' + probe.id;
+  div.style.left = probe.screenPos.x + 'px'; div.style.top = probe.screenPos.y + 'px';
+  div.innerHTML = probeHTML(probe);
+  makeDraggable(div, probe);
+  div.addEventListener('contextmenu', e => { e.preventDefault(); removeProbe(probe.id); });
+  overlay.appendChild(div);
+}
+
+function probeHTML(probe) {
+  let html = `<div class="probe-label">${probe.kind === 'pressure' ? 'ΔP / V' : 'Q / I'}</div>`;
+  if (probe.kind === 'pressure') {
+    const na = STATE.nodesById[probe.refs[0]], nb = STATE.nodesById[probe.refs[1]];
+    if (na && nb) {
+      const dp = na.p - nb.p;
+      html += `<div class="probe-value">${dp.toFixed(3)} Pa</div>`;
+      html += `<div class="probe-equiv">${(dp * CONFIG.EQUIV.PRESSURE_PER_VOLT).toFixed(3)} V</div>`;
+    } else {
+      html += `<div class="probe-value">—</div>`;
+    }
+  } else {
+    const e = STATE.edgesById[probe.refs[0]];
+    if (e) {
+      html += `<div class="probe-value">${e.Q.toFixed(3)} L/s</div>`;
+      html += `<div class="probe-equiv">${(e.Q * CONFIG.EQUIV.FLOW_PER_AMP).toFixed(3)} A</div>`;
+    } else { html += `<div class="probe-value">—</div>`; }
+  }
+  html += `<div style="font-size:.65rem;color:var(--muted);margin-top:2px">Right-click to remove</div>`;
+  return html;
+}
+
+function updateProbes() {
+  for (const probe of STATE.probes) {
+    const badge = document.getElementById('probe-' + probe.id);
+    if (badge) badge.innerHTML = probeHTML(probe);
+  }
+}
+
+function removeProbe(id) {
+  STATE.probes = STATE.probes.filter(p => p.id !== id);
+  const badge = document.getElementById('probe-' + id);
+  if (badge) badge.remove();
+}
+
+function makeDraggable(el, probe) {
+  let ox, oy, sx, sy;
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    ox = probe.screenPos.x; oy = probe.screenPos.y; sx = e.clientX; sy = e.clientY;
+    el.classList.add('dragging'); el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    if (!el.classList.contains('dragging')) return;
+    probe.screenPos.x = ox + (e.clientX - sx); probe.screenPos.y = oy + (e.clientY - sy);
+    el.style.left = probe.screenPos.x + 'px'; el.style.top = probe.screenPos.y + 'px';
+  });
+  el.addEventListener('pointerup', () => el.classList.remove('dragging'));
+}
+
+// ── Canvas hit-testing ────────────────────────────────────────────────────────
+function canvasXY(e) {
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  const scale = CONFIG.VIEW.W / rect.width;
+  return { sx: (e.clientX - rect.left) * scale, sy: (e.clientY - rect.top) * scale };
+}
+
+function nearestNode(sx, sy) {
+  let best = null, bestD = Infinity;
+  for (const n of STATE.nodes) {
+    const sp = project(n.pos.x, n.pos.y, n.pos.z);
+    const d  = dist2D(sx, sy, sp.sx, sp.sy);
+    if (d < bestD && d < 25) { bestD = d; best = n; }
+  }
+  return best;
+}
+
+function nearestEdge(sx, sy) {
+  let best = null, bestD = Infinity;
+  for (const e of STATE.edges) {
+    const m  = edgePointAt(e.path, 0.5);
+    const sp = project(m.x, m.y, m.z || 0);
+    const d  = dist2D(sx, sy, sp.sx, sp.sy);
+    if (d < bestD && d < 25) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+// ── Controls setup ────────────────────────────────────────────────────────────
+function setupControls() {
+  // Pump slider
+  const slider = document.getElementById('pump-slider');
+  const readout = document.getElementById('pump-readout');
+  slider.addEventListener('input', () => {
+    STATE.pumpTarget = +slider.value;
+    readout.textContent = Math.round(STATE.pumpTarget * 100) + '%';
+  });
+
+  // Schematic toggle
+  document.getElementById('schematic-toggle').addEventListener('change', e => {
+    STATE.schematicWanted = e.target.checked;
+  });
+
+  // Probe buttons
+  document.getElementById('add-pressure-probe').addEventListener('click', () => {
+    setProbeMode('pressure-pick-1');
+  });
+  document.getElementById('add-flow-probe').addEventListener('click', () => {
+    setProbeMode('flow-pick');
+  });
+
+  // Reset
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    for (const n of STATE.nodes) if (n.kind === 'tank') n.h = CONFIG.TANK.H_INITIAL;
+    STATE.pumpTarget = 0;
+    document.getElementById('pump-slider').value = 0;
+    document.getElementById('pump-readout').textContent = '0%';
+  });
+
+  // Canvas events
+  const canvas = document.getElementById('canvas');
+  canvas.addEventListener('mousemove', onCanvasMouseMove);
+  canvas.addEventListener('click', onCanvasClick);
+  canvas.addEventListener('mouseleave', () => { STATE.hoverNodeId = null; STATE.hoverEdgeId = null; });
+
+  // Close param panel on Escape
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeParamPanel(); setProbeMode(null); } });
+}
+
+function setProbeMode(mode) {
+  STATE.probeMode = mode;
+  STATE.probePickBuffer = null;
+  const canvas = document.getElementById('canvas');
+  canvas.className = mode ? 'probing' : '';
+  const pp = document.getElementById('add-pressure-probe');
+  const fp = document.getElementById('add-flow-probe');
+  pp.classList.toggle('active', mode === 'pressure-pick-1' || mode === 'pressure-pick-2');
+  fp.classList.toggle('active', mode === 'flow-pick');
+}
+
+function onCanvasMouseMove(e) {
+  const { sx, sy } = canvasXY(e);
+  if (STATE.probeMode === 'pressure-pick-1' || STATE.probeMode === 'pressure-pick-2') {
+    const n = nearestNode(sx, sy);
+    STATE.hoverNodeId = n ? n.id : null;
+    STATE.hoverEdgeId = null;
+  } else if (STATE.probeMode === 'flow-pick') {
+    const ed = nearestEdge(sx, sy);
+    STATE.hoverEdgeId = ed ? ed.id : null;
+    STATE.hoverNodeId = null;
+  } else {
+    STATE.hoverNodeId = null; STATE.hoverEdgeId = null;
+  }
+}
+
+function onCanvasClick(e) {
+  if (!STATE.probeMode) return;
+  const { sx, sy } = canvasXY(e);
+  if (STATE.probeMode === 'pressure-pick-1') {
+    const n = nearestNode(sx, sy); if (!n) return;
+    STATE.probePickBuffer = n.id;
+    setProbeMode('pressure-pick-2');
+  } else if (STATE.probeMode === 'pressure-pick-2') {
+    const n = nearestNode(sx, sy); if (!n || n.id === STATE.probePickBuffer) return;
+    const probe = new Probe({ kind: 'pressure', refs: [STATE.probePickBuffer, n.id], screenPos: { x: 20, y: 20 } });
+    STATE.probes.push(probe);
+    addProbeBadge(probe);
+    setProbeMode(null);
+  } else if (STATE.probeMode === 'flow-pick') {
+    const ed = nearestEdge(sx, sy); if (!ed) return;
+    const probe = new Probe({ kind: 'flow', refs: [ed.id], screenPos: { x: 20, y: 20 } });
+    STATE.probes.push(probe);
+    addProbeBadge(probe);
+    setProbeMode(null);
+  }
+}
+</script>
+
+<script>
+// ===== MAIN =====
+
+// ── Particle seeding ──────────────────────────────────────────────────────────
+function seedParticles() {
+  STATE.particles = [];
+  const edges = STATE.edges.filter(e => e.path.length >= 2);
+  if (!edges.length) return;
+  for (let i = 0; i < CONFIG.PARTICLE.COUNT; i++) {
+    const e = edges[Math.floor(Math.random() * edges.length)];
+    STATE.particles.push({
+      edgeId:  e.id,
+      s:       Math.random(),
+      zJitter: (Math.random() - 0.5) * 2   // -1..1, used in render for visual spread
+    });
+  }
+}
+
+// ── Particle advection ────────────────────────────────────────────────────────
+function advectParticles(dt) {
+  const edges = STATE.edges;
+  if (!edges.length) return;
+
+  // Build adjacency for particle hand-off: nodeId → outgoing edges, incoming edges
+  const adj = {};
+  for (const n of STATE.nodes) adj[n.id] = { out: [], inc: [] };
+  for (const e of edges) {
+    if (adj[e.a]) adj[e.a].out.push(e);
+    if (adj[e.b]) adj[e.b].inc.push(e);
+  }
+
+  for (const p of STATE.particles) {
+    const e = STATE.edgesById[p.edgeId];
+    if (!e) { reassignParticle(p, edges); continue; }
+
+    const v = e.Q / (e.areaPipe * e.length) * CONFIG.PARTICLE.SPEED_VISUAL_GAIN;
+    p.s += v * dt;
+
+    if (p.s > 1) {
+      // Exited at node b — pick a downstream edge
+      const nodeId   = e.b;
+      const nexts    = (adj[nodeId] || {}).out || [];
+      const nextEdge = pickNextEdge(nexts, p.s - 1);
+      if (nextEdge) { p.edgeId = nextEdge.id; p.s = 0; }
+      else { p.s = 1; }      // dead end: freeze
+    } else if (p.s < 0) {
+      // Exited at node a in reverse — pick an incoming edge going the other way
+      const nodeId   = e.a;
+      const nexts    = (adj[nodeId] || {}).inc || [];
+      const nextEdge = pickNextEdge(nexts, 0);
+      if (nextEdge) { p.edgeId = nextEdge.id; p.s = 1; }
+      else { p.s = 0; }
+    }
+  }
+}
+
+function pickNextEdge(candidates, _bias) {
+  const flowing = candidates.filter(e => Math.abs(e.Q) > 1e-6);
+  if (!flowing.length) {
+    // All stagnant: pick randomly
+    return candidates[Math.floor(Math.random() * candidates.length)] || null;
+  }
+  // Weighted by |Q|
+  const total = flowing.reduce((s, e) => s + Math.abs(e.Q), 0);
+  let r = Math.random() * total;
+  for (const e of flowing) { r -= Math.abs(e.Q); if (r <= 0) return e; }
+  return flowing[flowing.length - 1];
+}
+
+function reassignParticle(p, edges) {
+  const e = edges[Math.floor(Math.random() * edges.length)];
+  p.edgeId = e.id; p.s = Math.random();
+}
+
+// ── Schematic mix animation ───────────────────────────────────────────────────
+function updateSchematicMix(dt) {
+  const target = STATE.schematicWanted ? 1 : 0;
+  const speed  = 3;   // transition completes in ~0.33 s
+  if (STATE.schematicMix < target) STATE.schematicMix = Math.min(target, STATE.schematicMix + speed * dt);
+  else if (STATE.schematicMix > target) STATE.schematicMix = Math.max(target, STATE.schematicMix - speed * dt);
+}
+
+// ── Pump ramp ─────────────────────────────────────────────────────────────────
+// pumpTarget tracks the slider; pumpTarget is used directly (no ramp needed since
+// the slider itself provides smooth input). The pump dP is set inside the solver.
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+let _prevTime = null;
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function frame(timestamp) {
+  requestAnimationFrame(frame);
+
+  const dt = (_prevTime == null) ? 0 : Math.min((timestamp - _prevTime) / 1000, 0.1);
+  _prevTime = timestamp;
+  STATE.tNow = timestamp;
+
+  // Rebuild layout if slots changed
+  if (STATE.needsLayout) {
+    layoutFromSlots();
+    renderSlotCarousel();
+  }
+
+  // Animate schematic blend
+  updateSchematicMix(dt);
+
+  // Physics
+  if (dt > 0) {
+    physicsTick(dt);
+    advectParticles(dt);
+  }
+
+  // Draw
+  drawFrame(ctx, timestamp);
+
+  // Update probe badge text
+  updateProbes();
+}
+
+// ── Initialisation ────────────────────────────────────────────────────────────
+function init() {
+  // Default circuit: pump + two resistor slots
+  STATE.slots = [
+    Slot.resistor(0.6),
+    Slot.resistor(0.6)
+  ];
+  STATE.pumpTarget   = 0;
+  STATE.schematicMix = 0;
+  STATE.schematicWanted = false;
+  STATE.tStart = performance.now();
+
+  setupControls();
+  renderSlotCarousel();
+
+  // Hide loading overlay
+  const loading = document.getElementById('loading');
+  loading.classList.add('hidden');
+  setTimeout(() => { loading.style.display = 'none'; }, 400);
+
+  requestAnimationFrame(frame);
+}
+
+// Start once DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+
+</body>
+</html>

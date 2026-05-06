@@ -64,7 +64,7 @@ const Component = {
     kReverse: CONFIG.DIODE.K_REVERSE,
     state: 'forward'   // persists across frames so hysteresis is meaningful
   }),
-  pipe:     () => ({ kind: 'resistor', k: 1e3 })   // ideal connector — very high G
+  pipe:     () => ({ kind: 'resistor', k: 5 })   // low-resistance connector (not infinite — keeps integration stable)
 };
 
 // Slots: the user-facing topology element. Each slot expands at layout time

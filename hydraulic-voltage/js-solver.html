@@ -130,14 +130,14 @@ function computeEdgeFlows(edges, nodesById, result) {
     const nb = nodesById[e.b];
 
     if (c.kind === 'pump') {
-      e.Q = iPump;
+      // MNA voltage-source convention: i_src is the current "leaving the +
+      // terminal through the source", so internal flow from a→b is -i_src.
+      e.Q = -iPump;
       continue;
     }
 
     let k;
     if (c.kind === 'diode') {
-      k = (c.comp && c.comp.state === 'forward') ? c.kFwd : c.kReverse;
-      // Re-read from the component directly (not via c.comp which is the edge).
       k = (e.comp.state === 'forward') ? e.comp.kFwd : e.comp.kReverse;
     } else {
       k = c.k;
